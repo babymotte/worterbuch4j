@@ -2,8 +2,10 @@ Bundle-Version: 1.0.0.${tstamp}
 
 -baseline: *
 -buildpath: \
-  osgi.annotation; version=7.0.0,\
-  osgi.cmpn; version=7.0.0
+	osgi.annotation;version='7.0.0',\
+	osgi.cmpn;version='7.0.0',\
+	worterbuch.client.api;version=latest,\
+	slf4j.api;version='1.7'
 
 javac.source: 17
 javac.target: 17
