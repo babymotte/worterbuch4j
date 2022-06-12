@@ -1,0 +1,20 @@
+-runfw: org.eclipse.osgi;version=3.13
+-runee: JavaSE-17
+-runprovidedcapabilities: ${native_capability}
+
+-resolve.effective: active
+
+-runproperties: \
+	osgi.console=,\
+	osgi.console.enable.builtin=false
+
+-runrequires: \
+	osgi.identity;filter:='(osgi.identity=org.apache.felix.gogo.shell)',\
+	osgi.identity;filter:='(osgi.identity=org.apache.felix.gogo.command)',\
+	osgi.identity;filter:='(osgi.identity=worterbuch.client.demo)'
+-runbundles: \
+	org.apache.felix.gogo.command;version='[1.0.2,1.0.3)',\
+	org.apache.felix.gogo.runtime;version='[1.0.10,1.0.11)',\
+	org.apache.felix.gogo.shell;version='[1.0.0,1.0.1)',\
+	org.apache.felix.scr;version='[2.1.10,2.1.11)',\
+	worterbuch.client.demo;version=snapshot
