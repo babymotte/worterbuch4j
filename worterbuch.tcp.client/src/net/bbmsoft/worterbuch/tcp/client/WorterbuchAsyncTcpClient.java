@@ -241,29 +241,24 @@ public class WorterbuchAsyncTcpClient implements AsyncWorterbuchClient {
 		this.log.info("Sent SUBSCRIBE request.");
 	}
 
-	void distribute(final Optional<ServerMessage> message) throws InterruptedException {
+	void distribute(final ServerMessage message) throws InterruptedException {
 
-		if (message.isEmpty()) {
-			this.connectionLost();
-		} else {
-			final var msg = message.get();
-			switch (msg.type()) {
-			case STATE:
-				this.distributeState(msg);
-				break;
-			case ACK:
-				this.distributeAck(msg);
-				break;
-			case EVENT:
-				this.distributeEvent(msg);
-				break;
-			case ERR:
-				this.distributeErr(msg);
-				break;
-			default: {
-				// ignore client messages
-			}
-			}
+		switch (message.type()) {
+		case STATE:
+			this.distributeState(message);
+			break;
+		case ACK:
+			this.distributeAck(message);
+			break;
+		case EVENT:
+			this.distributeEvent(message);
+			break;
+		case ERR:
+			this.distributeErr(message);
+			break;
+		default: {
+			// ignore client messages
+		}
 		}
 	}
 
@@ -272,7 +267,7 @@ public class WorterbuchAsyncTcpClient implements AsyncWorterbuchClient {
 		synchronized (this.stateLock) {
 			disconnected = (this.state == State.DISCONNECTING) || (this.state == State.DISCONNECTED);
 			if (!disconnected) {
-				this.transitionState(State.DISCONNECTED);
+				this.disconnect();
 			}
 		}
 
@@ -375,12 +370,14 @@ public class WorterbuchAsyncTcpClient implements AsyncWorterbuchClient {
 					final var message = ServerMessage.read(this.inputStream);
 					if (message.isEmpty()) {
 						this.log.info("Connection closed, terminating receiver thread.");
+						WorterbuchAsyncTcpClient.this.connectionLost();
 						break;
 					} else {
-						WorterbuchAsyncTcpClient.this.distribute(message);
+						WorterbuchAsyncTcpClient.this.distribute(message.get());
 					}
 				} catch (final DecodeException e) {
 					this.log.warn("Received malformed message from server, terminating receiver thread.");
+					WorterbuchAsyncTcpClient.this.connectionLost();
 					break;
 				} catch (final InterruptedException e) {
 					this.log.warn("Receiver thread interrupted, terminating.");

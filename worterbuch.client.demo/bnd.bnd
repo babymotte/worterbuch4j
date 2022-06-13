@@ -2,6 +2,7 @@ Bundle-Version: 1.0.0.${tstamp}
 
 -baseline: *
 -buildpath: \
+	osgi.core;version='7.0.0',\
 	osgi.annotation;version='7.0.0',\
 	osgi.cmpn;version='7.0.0',\
 	worterbuch.client.api;version=latest,\

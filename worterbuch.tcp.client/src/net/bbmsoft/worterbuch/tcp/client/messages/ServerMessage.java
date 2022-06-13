@@ -16,16 +16,15 @@ public record ServerMessage(MessageType type, long transactionID, Optional<Strin
 
 	public static Optional<ServerMessage> read(final InputStream data) throws DecodeException {
 
-		int typeByte;
 		try {
-			typeByte = data.read();
-		} catch (final IOException e) {
-			// client disconnected, probably regularly
-			return Optional.empty();
-		}
-		final var type = MessageType.fromByte(typeByte);
 
-		try {
+			final var typeByte = data.read();
+			if (typeByte == -1) {
+				// server closed the connection
+				return Optional.empty();
+			}
+			final var type = MessageType.fromByte(typeByte);
+
 			return switch (type) {
 			case STATE: {
 				yield ServerMessage.readStateMessage(data);

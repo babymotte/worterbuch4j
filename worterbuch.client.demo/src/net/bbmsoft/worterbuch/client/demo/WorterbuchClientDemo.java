@@ -5,6 +5,8 @@ import java.net.URISyntaxException;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeoutException;
 
+import org.osgi.framework.BundleException;
+import org.osgi.framework.FrameworkUtil;
 import org.osgi.service.component.annotations.Activate;
 import org.osgi.service.component.annotations.Component;
 import org.osgi.service.component.annotations.Deactivate;
@@ -28,6 +30,7 @@ public class WorterbuchClientDemo {
 		final var uri = new URI("tcp://localhost:4242");
 
 		try {
+			this.client.onConnectionLost(this::shutdown);
 			this.client.connect(uri).get();
 		} catch (InterruptedException | ExecutionException e) {
 			this.log.error("Could not establish connection:", e);
@@ -68,5 +71,19 @@ public class WorterbuchClientDemo {
 				}
 			}
 		}, "subscription - " + pattern).start();
+	}
+
+	private void shutdown() {
+
+		final var bundle = FrameworkUtil.getBundle(this.getClass());
+		if (bundle != null) {
+			final var ctx = bundle.getBundleContext();
+			final var systemBundle = ctx.getBundle(0);
+			try {
+				systemBundle.stop();
+			} catch (final BundleException e) {
+				this.log.error("Failed to stop system bundle:", e);
+			}
+		}
 	}
 }
