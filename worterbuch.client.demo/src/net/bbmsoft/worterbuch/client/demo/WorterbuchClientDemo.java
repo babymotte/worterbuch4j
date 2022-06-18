@@ -15,6 +15,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import net.bbmsoft.worterbuch.client.api.AsyncWorterbuchClient;
+import net.bbmsoft.worterbuch.client.api.AsyncWorterbuchClient.Event;
 
 @Component(property = { "osgi.command.scope=wb", "osgi.command.function=get", "osgi.command.function=pget",
 		"osgi.command.function=set", "osgi.command.function=sub",
@@ -56,46 +57,19 @@ public class WorterbuchClientDemo {
 		return sb.toString();
 	}
 
-	public void set(final String key, final String value) throws InterruptedException, ExecutionException {
+	public String set(final String key, final String value) throws InterruptedException, ExecutionException {
 		this.client.set(key, value).get();
+		return "Ok";
 	}
 
-	public void sub(final String key) throws InterruptedException, ExecutionException {
-		final var events = this.client.subscribe(key).get();
-		new Thread(() -> {
-			while (!Thread.currentThread().isInterrupted()) {
-				try {
-					final var event = events.take();
-					if (event.isEmpty()) {
-						break;
-					} else {
-						final var theEvent = event.get();
-						this.log.info("Received event: {} = {}", theEvent.key(), theEvent.value());
-					}
-				} catch (final InterruptedException e) {
-					break;
-				}
-			}
-		}, "subscription - " + key).start();
+	public String sub(final String key) throws InterruptedException, ExecutionException {
+		this.client.subscribe(key, e -> e.ifPresent(this::logEvent)).get();
+		return "Ok";
 	}
 
-	public void psub(final String pattern) throws InterruptedException, ExecutionException {
-		final var events = this.client.psubscribe(pattern).get();
-		new Thread(() -> {
-			while (!Thread.currentThread().isInterrupted()) {
-				try {
-					final var event = events.take();
-					if (event.isEmpty()) {
-						break;
-					} else {
-						final var theEvent = event.get();
-						this.log.info("Received event: {} = {}", theEvent.key(), theEvent.value());
-					}
-				} catch (final InterruptedException e) {
-					break;
-				}
-			}
-		}, "subscription - " + pattern).start();
+	public String psub(final String pattern) throws InterruptedException, ExecutionException {
+		this.client.psubscribe(pattern, e -> e.ifPresent(this::logEvent)).get();
+		return "Ok";
 	}
 
 	private void shutdown() {
@@ -111,4 +85,9 @@ public class WorterbuchClientDemo {
 			}
 		}
 	}
+
+	private void logEvent(final Event event) {
+		System.out.println("Event: " + event.key() + " = " + event.value());
+	}
+
 }

@@ -16,6 +16,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.LinkedBlockingQueue;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 import org.osgi.service.component.annotations.Component;
@@ -42,10 +43,9 @@ public class WorterbuchAsyncTcpClient implements AsyncWorterbuchClient {
 
 	private final Map<Long, BlockingQueue<Optional<String>>> pendingGetRequests = new ConcurrentHashMap<>();
 	private final Map<Long, BlockingQueue<Map<String, String>>> pendingPGetRequests = new ConcurrentHashMap<>();
-	private final Map<Long, BlockingQueue<Object>> pendingSetRequests = new ConcurrentHashMap<>();
-	private final Map<Long, BlockingQueue<BlockingQueue<Optional<Event>>>> pendingSubscribeRequests = new ConcurrentHashMap<>();
-	private final Map<Long, BlockingQueue<BlockingQueue<Optional<Event>>>> pendingPSubscribeRequests = new ConcurrentHashMap<>();
-	private final Map<Long, BlockingQueue<Optional<Event>>> subscriptions = new ConcurrentHashMap<>();
+	private final Map<Long, BlockingQueue<Void>> pendingSetRequests = new ConcurrentHashMap<>();
+	private final Map<Long, SubscribeRequest> pendingSubscribeRequests = new ConcurrentHashMap<>();
+	private final Map<Long, Consumer<Optional<Event>>> subscriptions = new ConcurrentHashMap<>();
 	private final Object stateLock = new Object();
 
 	private volatile Runnable onConnectionLost;
@@ -109,23 +109,23 @@ public class WorterbuchAsyncTcpClient implements AsyncWorterbuchClient {
 	}
 
 	@Override
-	public Future<Object> set(final String key, final String value) {
+	public Future<Void> set(final String key, final String value) {
 		this.assertState(State.CONNECTING, State.CONNECTED);
 		final var result = this.executor.submit(() -> this.doSet(key, value));
 		return new RequestFuture<>(result);
 	}
 
 	@Override
-	public Future<BlockingQueue<Optional<Event>>> subscribe(final String key) {
+	public Future<Void> subscribe(final String key, final Consumer<Optional<Event>> onEvent) {
 		this.assertState(State.CONNECTING, State.CONNECTED);
-		final var result = this.executor.submit(() -> this.doSubscribe(key));
+		final var result = this.executor.submit(() -> this.doSubscribe(key, onEvent));
 		return new RequestFuture<>(result);
 	}
 
 	@Override
-	public Future<BlockingQueue<Optional<Event>>> psubscribe(final String pattern) {
+	public Future<Void> psubscribe(final String pattern, final Consumer<Optional<Event>> onEvent) {
 		this.assertState(State.CONNECTING, State.CONNECTED);
-		final var result = this.executor.submit(() -> this.doPSubscribe(pattern));
+		final var result = this.executor.submit(() -> this.doPSubscribe(pattern, onEvent));
 		return new RequestFuture<>(result);
 	}
 
@@ -207,10 +207,10 @@ public class WorterbuchAsyncTcpClient implements AsyncWorterbuchClient {
 		return queue;
 	}
 
-	private BlockingQueue<Object> doSet(final String key, final String value) throws EncoderException, IOException {
+	private BlockingQueue<Void> doSet(final String key, final String value) throws EncoderException, IOException {
 		this.assertState(State.CONNECTED);
 
-		final var queue = new LinkedBlockingQueue<>(1);
+		final var queue = new LinkedBlockingQueue<Void>(1);
 		final var transactionID = this.transactionID++;
 
 		this.pendingSetRequests.put(transactionID, queue);
@@ -225,14 +225,14 @@ public class WorterbuchAsyncTcpClient implements AsyncWorterbuchClient {
 		return queue;
 	}
 
-	private BlockingQueue<BlockingQueue<Optional<Event>>> doSubscribe(final String key)
+	private BlockingQueue<Void> doSubscribe(final String key, final Consumer<Optional<Event>> onEvent)
 			throws EncoderException, IOException {
 		this.assertState(State.CONNECTED);
 
-		final var queue = new LinkedBlockingQueue<BlockingQueue<Optional<Event>>>(1);
+		final var queue = new LinkedBlockingQueue<Void>(1);
 		final var transactionID = this.transactionID++;
 
-		this.pendingSubscribeRequests.put(transactionID, queue);
+		this.pendingSubscribeRequests.put(transactionID, new SubscribeRequest(onEvent, queue));
 
 		try {
 			this.sendSubscribeRequest(transactionID, key);
@@ -244,14 +244,14 @@ public class WorterbuchAsyncTcpClient implements AsyncWorterbuchClient {
 		return queue;
 	}
 
-	private BlockingQueue<BlockingQueue<Optional<Event>>> doPSubscribe(final String pattern)
+	private BlockingQueue<Void> doPSubscribe(final String pattern, final Consumer<Optional<Event>> onEvent)
 			throws EncoderException, IOException {
 		this.assertState(State.CONNECTED);
 
-		final var queue = new LinkedBlockingQueue<BlockingQueue<Optional<Event>>>(1);
+		final var queue = new LinkedBlockingQueue<Void>(1);
 		final var transactionID = this.transactionID++;
 
-		this.pendingPSubscribeRequests.put(transactionID, queue);
+		this.pendingSubscribeRequests.put(transactionID, new SubscribeRequest(onEvent, queue));
 
 		try {
 			this.sendPSubscribeRequest(transactionID, pattern);
@@ -275,14 +275,12 @@ public class WorterbuchAsyncTcpClient implements AsyncWorterbuchClient {
 		final var bytes = ClientMessage.encodeGet(transactionID, key);
 		this.tx.write(bytes);
 		this.tx.flush();
-		this.log.info("Sent GET request.");
 	}
 
 	private void sendPGetRequest(final long transactionID, final String pattern) throws EncoderException, IOException {
 		final var bytes = ClientMessage.encodePGet(transactionID, pattern);
 		this.tx.write(bytes);
 		this.tx.flush();
-		this.log.info("Sent PGET request.");
 	}
 
 	private void sendSetRequest(final long transactionID, final String key, final String value)
@@ -290,14 +288,12 @@ public class WorterbuchAsyncTcpClient implements AsyncWorterbuchClient {
 		final var bytes = ClientMessage.encodeSet(transactionID, key, value);
 		this.tx.write(bytes);
 		this.tx.flush();
-		this.log.info("Sent SET request.");
 	}
 
 	private void sendSubscribeRequest(final long transactionID, final String key) throws EncoderException, IOException {
 		final var bytes = ClientMessage.encodeSubscribe(transactionID, key);
 		this.tx.write(bytes);
 		this.tx.flush();
-		this.log.info("Sent SUBSCRIBE request.");
 	}
 
 	private void sendPSubscribeRequest(final long transactionID, final String pattern)
@@ -305,7 +301,6 @@ public class WorterbuchAsyncTcpClient implements AsyncWorterbuchClient {
 		final var bytes = ClientMessage.encodePSubscribe(transactionID, pattern);
 		this.tx.write(bytes);
 		this.tx.flush();
-		this.log.info("Sent PSUBSCRIBE request.");
 	}
 
 	void distribute(final ServerMessage message) throws InterruptedException {
@@ -365,7 +360,7 @@ public class WorterbuchAsyncTcpClient implements AsyncWorterbuchClient {
 		if (subscription != null) {
 			final var values = msg.keyValuePairs().get();
 			for (final var entry : values.entrySet()) {
-				subscription.put(Optional.of(new Event(entry.getKey(), entry.getValue())));
+				subscription.accept(Optional.of(new Event(entry.getKey(), entry.getValue())));
 			}
 		}
 	}
@@ -374,25 +369,15 @@ public class WorterbuchAsyncTcpClient implements AsyncWorterbuchClient {
 		{
 			final var consumer = this.pendingSetRequests.remove(msg.transactionID());
 			if (consumer != null) {
-				consumer.put(new Object());
+				consumer.put(new Void());
 			}
 		}
 
 		{
 			final var consumer = this.pendingSubscribeRequests.remove(msg.transactionID());
 			if (consumer != null) {
-				final var events = new LinkedBlockingQueue<Optional<Event>>(1000);
-				this.subscriptions.put(msg.transactionID(), events);
-				consumer.put(events);
-			}
-		}
-
-		{
-			final var consumer = this.pendingPSubscribeRequests.remove(msg.transactionID());
-			if (consumer != null) {
-				final var events = new LinkedBlockingQueue<Optional<Event>>(1000);
-				this.subscriptions.put(msg.transactionID(), events);
-				consumer.put(events);
+				this.subscriptions.put(msg.transactionID(), consumer.onEvent);
+				consumer.result.put(new Void());
 			}
 		}
 	}
@@ -408,7 +393,7 @@ public class WorterbuchAsyncTcpClient implements AsyncWorterbuchClient {
 		if (subscription != null) {
 			final var values = msg.keyValuePairs().get();
 			for (final var entry : values.entrySet()) {
-				subscription.put(Optional.of(new Event(entry.getKey(), entry.getValue())));
+				subscription.accept(Optional.of(new Event(entry.getKey(), entry.getValue())));
 			}
 		}
 	}
@@ -485,4 +470,8 @@ public class WorterbuchAsyncTcpClient implements AsyncWorterbuchClient {
 			}
 		}
 	}
+
+	private record SubscribeRequest(Consumer<Optional<Event>> onEvent, BlockingQueue<Void> result) {
+	}
+
 }

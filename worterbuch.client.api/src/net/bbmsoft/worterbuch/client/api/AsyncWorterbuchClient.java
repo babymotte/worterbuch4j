@@ -11,12 +11,13 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.function.Consumer;
 
 import org.osgi.annotation.versioning.ProviderType;
 
 /**
- * A client for a Wörterbuch server. Once connected it can be used to get, set
- * and subscribe to values.
+ * A client for a Wörterbuch server. Once connected it can be used to get/pget,
+ * set and subscribe/psubscribe to values.
  *
  * @since 1.0
  */
@@ -133,7 +134,7 @@ public interface AsyncWorterbuchClient extends AutoCloseable {
 	 * @return a future that completes as soon as the server has ACKed the SET
 	 *         operation
 	 */
-	public Future<Object> set(String key, String value);
+	public Future<Void> set(String key, String value);
 
 	/**
 	 * Perform a SUBSCRIBE request to the server. This function must not be called
@@ -156,7 +157,7 @@ public interface AsyncWorterbuchClient extends AutoCloseable {
 	 *         as a result of this subscription
 	 * @throws IllegalArgumentException if the key contains a wildcard
 	 */
-	public Future<BlockingQueue<Optional<Event>>> subscribe(String key);
+	public Future<Void> subscribe(String key, Consumer<Optional<Event>> onEvent);
 
 	/**
 	 * Perform a SUBSCRIBE request to the server. This function must not be called
@@ -178,7 +179,7 @@ public interface AsyncWorterbuchClient extends AutoCloseable {
 	 *         client will push any {@link Event Events} it receives from the server
 	 *         as a result of this subscription
 	 */
-	public Future<BlockingQueue<Optional<Event>>> psubscribe(String pattern);
+	public Future<Void> psubscribe(String pattern, Consumer<Optional<Event>> onEvent);
 
 	/**
 	 * Runs the provided action when the connection is closed by the server. Call
@@ -197,4 +198,6 @@ public interface AsyncWorterbuchClient extends AutoCloseable {
 	public record Event(String key, String value) {
 	}
 
+	public record Void() {
+	}
 }
