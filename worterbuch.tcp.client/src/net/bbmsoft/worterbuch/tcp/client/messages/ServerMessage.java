@@ -8,6 +8,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
 
+import net.bbmsoft.worterbuch.client.api.Constants;
 import net.bbmsoft.worterbuch.tcp.client.error.DecodeException;
 import net.bbmsoft.worterbuch.tcp.client.utils.ByteUtils;
 
@@ -26,14 +27,14 @@ public record ServerMessage(MessageType type, long transactionID, Optional<Strin
 			final var type = MessageType.fromByte(typeByte);
 
 			return switch (type) {
-			case STATE: {
-				yield ServerMessage.readStateMessage(data);
+			case PSTATE: {
+				yield ServerMessage.readPStateMessage(data);
 			}
 			case ACK: {
 				yield ServerMessage.readAckMessage(data);
 			}
-			case EVENT: {
-				yield ServerMessage.readEventMessage(data);
+			case STATE: {
+				yield ServerMessage.readStateMessage(data);
 			}
 			case ERR: {
 				yield ServerMessage.readErrMessage(data);
@@ -46,24 +47,25 @@ public record ServerMessage(MessageType type, long transactionID, Optional<Strin
 		}
 	}
 
-	private static Optional<ServerMessage> readStateMessage(final InputStream data) throws IOException {
+	private static Optional<ServerMessage> readPStateMessage(final InputStream data) throws IOException {
 
 		byte[] buf;
+		int bytes;
 
-		buf = new byte[8];
-		if (data.readNBytes(buf, 0, 8) < 8) {
+		buf = new byte[bytes = Constants.TRANSACTION_ID_BYTES];
+		if (data.readNBytes(buf, 0, bytes) < bytes) {
 			return Optional.empty();
 		}
 		final var transactionID = ByteUtils.bytesToLong(buf);
 
-		buf = new byte[2];
-		if (data.readNBytes(buf, 0, 2) < 2) {
+		buf = new byte[bytes = Constants.PATTERN_LENGTH_BYTES];
+		if (data.readNBytes(buf, 0, bytes) < bytes) {
 			return Optional.empty();
 		}
 		final var requestPatternLength = ByteUtils.bytesToShort(buf);
 
-		buf = new byte[4];
-		if (data.readNBytes(buf, 0, 4) < 4) {
+		buf = new byte[bytes = Constants.NUM_KEY_VALUE_PARIS_BYTES];
+		if (data.readNBytes(buf, 0, bytes) < bytes) {
 			return Optional.empty();
 		}
 		final var numKeyValuePairs = ByteUtils.bytesToInt(buf);
@@ -72,14 +74,14 @@ public record ServerMessage(MessageType type, long transactionID, Optional<Strin
 
 		for (var i = 0; i < numKeyValuePairs; i++) {
 
-			buf = new byte[2];
-			if (data.readNBytes(buf, 0, 2) < 2) {
+			buf = new byte[bytes = Constants.KEY_LENGTH_BYTES];
+			if (data.readNBytes(buf, 0, bytes) < bytes) {
 				return Optional.empty();
 			}
 			final var keyLength = ByteUtils.bytesToShort(buf);
 
-			buf = new byte[4];
-			if (data.readNBytes(buf, 0, 4) < 4) {
+			buf = new byte[bytes = Constants.VALUE_LENGTH_BYTES];
+			if (data.readNBytes(buf, 0, bytes) < bytes) {
 				return Optional.empty();
 			}
 			final var valueLength = ByteUtils.bytesToInt(buf);
@@ -99,16 +101,16 @@ public record ServerMessage(MessageType type, long transactionID, Optional<Strin
 			final var keyLength = (int) lengths[0];
 			final var valueLength = lengths[1];
 
-			buf = new byte[keyLength];
-			if (data.readNBytes(buf, 0, keyLength) < keyLength) {
+			buf = new byte[bytes = keyLength];
+			if (data.readNBytes(buf, 0, bytes) < bytes) {
 				return Optional.empty();
 			}
 			final var key = new String(buf, StandardCharsets.UTF_8).intern();
 
 			// TODO this reduces the max length of a value by half due to java ints being
 			// signed. How to fix this? (array can't be indexed using long)
-			buf = new byte[(int) valueLength];
-			if (data.readNBytes(buf, 0, (int) valueLength) < valueLength) {
+			buf = new byte[bytes = (int) valueLength];
+			if (data.readNBytes(buf, 0, bytes) < bytes) {
 				return Optional.empty();
 			}
 			final var value = new String(buf, StandardCharsets.UTF_8).intern();
@@ -116,16 +118,17 @@ public record ServerMessage(MessageType type, long transactionID, Optional<Strin
 			keyValuePairs.put(key, value);
 		}
 
-		return Optional.of(new ServerMessage(MessageType.STATE, transactionID, Optional.of(requestPattern),
+		return Optional.of(new ServerMessage(MessageType.PSTATE, transactionID, Optional.of(requestPattern),
 				Optional.of(keyValuePairs), Optional.empty(), Optional.empty()));
 	}
 
 	private static Optional<ServerMessage> readAckMessage(final InputStream data) throws IOException {
 
 		byte[] buf;
+		int bytes;
 
-		buf = new byte[8];
-		if (data.readNBytes(buf, 0, 8) < 8) {
+		buf = new byte[bytes = Constants.TRANSACTION_ID_BYTES];
+		if (data.readNBytes(buf, 0, bytes) < bytes) {
 			return Optional.empty();
 		}
 		final var transactionID = ByteUtils.bytesToLong(buf);
@@ -134,50 +137,39 @@ public record ServerMessage(MessageType type, long transactionID, Optional<Strin
 				Optional.empty(), Optional.empty()));
 	}
 
-	private static Optional<ServerMessage> readEventMessage(final InputStream data) throws IOException {
+	private static Optional<ServerMessage> readStateMessage(final InputStream data) throws IOException {
 
 		byte[] buf;
+		int bytes;
 
-		buf = new byte[8];
-		if (data.readNBytes(buf, 0, 8) < 8) {
+		buf = new byte[bytes = Constants.TRANSACTION_ID_BYTES];
+		if (data.readNBytes(buf, 0, bytes) < bytes) {
 			return Optional.empty();
 		}
 		final var transactionID = ByteUtils.bytesToLong(buf);
 
-		buf = new byte[2];
-		if (data.readNBytes(buf, 0, 2) < 2) {
-			return Optional.empty();
-		}
-		final var requestPatternLength = ByteUtils.bytesToShort(buf);
-
-		buf = new byte[2];
-		if (data.readNBytes(buf, 0, 2) < 2) {
+		buf = new byte[bytes = Constants.KEY_LENGTH_BYTES];
+		if (data.readNBytes(buf, 0, bytes) < bytes) {
 			return Optional.empty();
 		}
 		final var keyLength = ByteUtils.bytesToShort(buf);
 
-		buf = new byte[4];
-		if (data.readNBytes(buf, 0, 4) < 4) {
+		buf = new byte[bytes = Constants.VALUE_LENGTH_BYTES];
+		if (data.readNBytes(buf, 0, bytes) < bytes) {
 			return Optional.empty();
 		}
 		final var valueLength = ByteUtils.bytesToInt(buf);
 
-		buf = new byte[requestPatternLength];
-		if (data.readNBytes(buf, 0, requestPatternLength) < requestPatternLength) {
-			return Optional.empty();
-		}
-		final var requestPattern = new String(buf, StandardCharsets.UTF_8).intern();
-
-		buf = new byte[keyLength];
-		if (data.readNBytes(buf, 0, keyLength) < keyLength) {
+		buf = new byte[bytes = keyLength];
+		if (data.readNBytes(buf, 0, bytes) < bytes) {
 			return Optional.empty();
 		}
 		final var key = new String(buf, StandardCharsets.UTF_8).intern();
 
 		// TODO this reduces the max length of a value by half due to java ints being
 		// signed. How to fix this? (array can't be indexed using long)
-		buf = new byte[(int) valueLength];
-		if (data.readNBytes(buf, 0, (int) valueLength) < valueLength) {
+		buf = new byte[bytes = (int) valueLength];
+		if (data.readNBytes(buf, 0, bytes) < bytes) {
 			return Optional.empty();
 		}
 		final var value = new String(buf, StandardCharsets.UTF_8).intern();
@@ -185,35 +177,36 @@ public record ServerMessage(MessageType type, long transactionID, Optional<Strin
 		final var keyValuePairs = new HashMap<String, String>();
 		keyValuePairs.put(key, value);
 
-		return Optional.of(new ServerMessage(MessageType.EVENT, transactionID, Optional.of(requestPattern),
+		return Optional.of(new ServerMessage(MessageType.STATE, transactionID, Optional.empty(),
 				Optional.of(keyValuePairs), Optional.empty(), Optional.empty()));
 	}
 
 	private static Optional<ServerMessage> readErrMessage(final InputStream data) throws IOException {
 
 		byte[] buf;
+		int bytes;
 
-		buf = new byte[8];
-		if (data.readNBytes(buf, 0, 8) < 8) {
+		buf = new byte[bytes = Constants.TRANSACTION_ID_BYTES];
+		if (data.readNBytes(buf, 0, bytes) < bytes) {
 			return Optional.empty();
 		}
 		final var transactionID = ByteUtils.bytesToLong(buf);
 
 		final var errorCode = data.read();
 
-		buf = new byte[4];
-		if (data.readNBytes(buf, 0, 4) < 4) {
+		buf = new byte[bytes = Constants.METADATA_LENGTH_BYTES];
+		if (data.readNBytes(buf, 0, bytes) < bytes) {
 			return Optional.empty();
 		}
 		final var metadataLength = ByteUtils.bytesToInt(buf);
 
-		buf = new byte[(int) metadataLength];
-		if (data.readNBytes(buf, 0, (int) metadataLength) < metadataLength) {
+		buf = new byte[bytes = (int) metadataLength];
+		if (data.readNBytes(buf, 0, bytes) < bytes) {
 			return Optional.empty();
 		}
 		final var metadata = new String(buf, StandardCharsets.UTF_8).intern();
 
-		return Optional.of(new ServerMessage(MessageType.EVENT, transactionID, Optional.empty(), Optional.empty(),
+		return Optional.of(new ServerMessage(MessageType.STATE, transactionID, Optional.empty(), Optional.empty(),
 				Optional.of((byte) errorCode), Optional.of(metadata)));
 	}
 }

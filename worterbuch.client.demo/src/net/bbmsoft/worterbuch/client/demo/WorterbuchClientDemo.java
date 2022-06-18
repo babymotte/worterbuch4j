@@ -16,8 +16,9 @@ import org.slf4j.LoggerFactory;
 
 import net.bbmsoft.worterbuch.client.api.AsyncWorterbuchClient;
 
-@Component(property = { "osgi.command.scope=wb", "osgi.command.function=get", "osgi.command.function=set",
-		"osgi.command.function=sub" }, service = WorterbuchClientDemo.class, immediate = true)
+@Component(property = { "osgi.command.scope=wb", "osgi.command.function=get", "osgi.command.function=pget",
+		"osgi.command.function=set", "osgi.command.function=sub",
+		"osgi.command.function=psub" }, service = WorterbuchClientDemo.class, immediate = true)
 public class WorterbuchClientDemo {
 
 	private final Logger log = LoggerFactory.getLogger(this.getClass());
@@ -43,8 +44,13 @@ public class WorterbuchClientDemo {
 		this.client.close();
 	}
 
-	public String get(final String pattern) throws InterruptedException, ExecutionException {
-		final var result = this.client.get(pattern).get();
+	public String get(final String key) throws InterruptedException, ExecutionException {
+		final var result = this.client.get(key).get();
+		return result.isEmpty() ? "No value" : key + "=" + result.get();
+	}
+
+	public String pget(final String pattern) throws InterruptedException, ExecutionException {
+		final var result = this.client.pget(pattern).get();
 		final var sb = new StringBuilder();
 		result.forEach((k, v) -> sb.append(k).append("=").append(v).append("\n"));
 		return sb.toString();
@@ -54,8 +60,27 @@ public class WorterbuchClientDemo {
 		this.client.set(key, value).get();
 	}
 
-	public void sub(final String pattern) throws InterruptedException, ExecutionException {
-		final var events = this.client.subscribe(pattern).get();
+	public void sub(final String key) throws InterruptedException, ExecutionException {
+		final var events = this.client.subscribe(key).get();
+		new Thread(() -> {
+			while (!Thread.currentThread().isInterrupted()) {
+				try {
+					final var event = events.take();
+					if (event.isEmpty()) {
+						break;
+					} else {
+						final var theEvent = event.get();
+						this.log.info("Received event: {} = {}", theEvent.key(), theEvent.value());
+					}
+				} catch (final InterruptedException e) {
+					break;
+				}
+			}
+		}, "subscription - " + key).start();
+	}
+
+	public void psub(final String pattern) throws InterruptedException, ExecutionException {
+		final var events = this.client.psubscribe(pattern).get();
 		new Thread(() -> {
 			while (!Thread.currentThread().isInterrupted()) {
 				try {

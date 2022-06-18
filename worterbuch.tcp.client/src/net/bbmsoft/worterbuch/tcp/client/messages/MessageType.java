@@ -4,8 +4,11 @@ import net.bbmsoft.worterbuch.tcp.client.error.DecodeException;
 import net.bbmsoft.worterbuch.tcp.client.error.UndefinedMessageType;
 
 public enum MessageType {
-	GET(0b00000000), SET(0b00000001), SUBSCRIBE(0b00000010), STATE(0b10000000), ACK(0b10000001), EVENT(0b10000010),
-	ERR(0b10000011);
+
+	// server messages
+	PSTATE(0b10000000), ACK(0b10000001), STATE(0b10000010), ERR(0b10000011),
+	// client messages
+	GET(0b00000000), SET(0b00000001), SUBSCRIBE(0b00000010), PGET(0b00000011), PSUBSCRIBE(0b00000100);
 
 	private final int typeByte;
 
@@ -19,35 +22,13 @@ public enum MessageType {
 
 	public static MessageType fromByte(final int typeByte) throws DecodeException {
 
-		return switch (typeByte) {
-		// client messages
-		case 0b00000000: {
-			yield MessageType.GET;
+		for (final MessageType messageType : MessageType.values()) {
+			if (messageType.typeByte == typeByte) {
+				return messageType;
+			}
 		}
-		case 0b00000001: {
-			yield MessageType.SET;
-		}
-		case 0b00000010: {
-			yield MessageType.SUBSCRIBE;
-		}
-		// server messages
-		case 0b10000000: {
-			yield MessageType.STATE;
-		}
-		case 0b10000001: {
-			yield MessageType.ACK;
-		}
-		case 0b10000010: {
-			yield MessageType.EVENT;
-		}
-		case 0b10000011: {
-			yield MessageType.ERR;
-		}
-		// undefined
-		default:
-			throw new UndefinedMessageType(typeByte);
-		};
 
+		throw new UndefinedMessageType(typeByte);
 	}
 
 }

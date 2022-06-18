@@ -98,11 +98,27 @@ public interface AsyncWorterbuchClient extends AutoCloseable {
 	 * The returned future will throw an {@link ExecutionException} if an
 	 * {@link IOException} occurs while making the request.
 	 *
+	 * @param key the key for which to get the value
+	 * @return a future that resolves to an optional String that will be empty if
+	 *         the key does not exist on the server and otherwise contain the key's
+	 *         value
+	 * @throws IllegalArgumentException if the key contains a wildcard
+	 */
+	public Future<Optional<String>> get(String key);
+
+	/**
+	 * Perform a GET request to the server. This function must not be called before
+	 * {@link #connect(URL)}, however it may be called before the future returned by
+	 * {@link #connect(URL)} completes.
+	 * <p>
+	 * The returned future will throw an {@link ExecutionException} if an
+	 * {@link IOException} occurs while making the request.
+	 *
 	 * @param pattern a request pattern conforming to the Wörterbuch specification
 	 * @return a future that resolves to a map of all key/value pairs matching the
 	 *         provided pattern
 	 */
-	public Future<Map<String, String>> get(String pattern);
+	public Future<Map<String, String>> pget(String pattern);
 
 	/**
 	 * Perform a SET request to the server. This function must not be called before
@@ -134,12 +150,35 @@ public interface AsyncWorterbuchClient extends AutoCloseable {
 	 * queue indicating that there will be no more events coming in from this
 	 * subscription.
 	 *
+	 * @param key the key to subscribe to
+	 * @return a future that resolves to a {@link BlockingQueue} into which the
+	 *         client will push any {@link Event Events} it receives from the server
+	 *         as a result of this subscription
+	 * @throws IllegalArgumentException if the key contains a wildcard
+	 */
+	public Future<BlockingQueue<Optional<Event>>> subscribe(String key);
+
+	/**
+	 * Perform a SUBSCRIBE request to the server. This function must not be called
+	 * before {@link #connect(URL)}, however it may be called before the future
+	 * returned by {@link #connect(URL)} completes.
+	 * <p>
+	 * The returned future will throw an {@link ExecutionException} if an
+	 * {@link IOException} occurs while making the request.
+	 * <p>
+	 * If the subscription is successful, it will return a {@link BlockingQueue}
+	 * into which the client will push events from the server. Events are wrapped
+	 * into an {@link Optional} to indicate the connection is still open. If the
+	 * connection closes, a single {@link Optional#empty()} will be pushed to the
+	 * queue indicating that there will be no more events coming in from this
+	 * subscription.
+	 *
 	 * @param pattern a request pattern conforming to the Wörterbuch specification
 	 * @return a future that resolves to a {@link BlockingQueue} into which the
 	 *         client will push any {@link Event Events} it receives from the server
 	 *         as a result of this subscription
 	 */
-	public Future<BlockingQueue<Optional<Event>>> subscribe(String pattern);
+	public Future<BlockingQueue<Optional<Event>>> psubscribe(String pattern);
 
 	/**
 	 * Runs the provided action when the connection is closed by the server. Call
