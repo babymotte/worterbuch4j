@@ -2,6 +2,7 @@ package net.bbmsoft.worterbuch.client.demo;
 
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.util.Optional;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeoutException;
 
@@ -29,7 +30,11 @@ public class WorterbuchClientDemo {
 
 	@Activate
 	public void activate() throws URISyntaxException {
-		final var uri = new URI("tcp://localhost:4242");
+
+		final var host = Optional.ofNullable(System.getenv("WORTERBUCH_HOST_ADDRESS")).orElse("localhost");
+		final var port = Optional.ofNullable(System.getenv("WORTERBUCH_TCP_PORT")).orElse("4242");
+
+		final var uri = new URI("tcp://" + host + ":" + port);
 
 		try {
 			this.client.onConnectionLost(this::shutdown);
