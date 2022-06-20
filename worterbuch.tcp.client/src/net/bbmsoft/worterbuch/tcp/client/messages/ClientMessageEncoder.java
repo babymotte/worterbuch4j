@@ -11,9 +11,11 @@ import net.bbmsoft.worterbuch.tcp.client.error.PatternTooLong;
 import net.bbmsoft.worterbuch.tcp.client.error.ValueTooLong;
 import net.bbmsoft.worterbuch.tcp.client.utils.ByteUtils;
 
-public class ClientMessage {
+public class ClientMessageEncoder {
 
-	public static byte[] encodeGet(final long transactionId, final String key) throws EncoderException {
+	private final ByteUtils byteUtils = new ByteUtils();
+
+	public byte[] encodeGet(final long transactionId, final String key) throws EncoderException {
 
 		Objects.requireNonNull(key, "key must not be NULL");
 		if (key.isBlank()) {
@@ -36,14 +38,14 @@ public class ClientMessage {
 
 		final var buf = ByteBuffer.allocate(outLength);
 		buf.put(MessageType.GET.toByte());
-		buf.put(ByteUtils.longToBytes(transactionId));
-		buf.put(ByteUtils.shortToBytes(keyBytes.length));
+		buf.put(this.byteUtils.longToBytes(transactionId));
+		buf.put(this.byteUtils.shortToBytes(keyBytes.length));
 		buf.put(keyBytes);
 
 		return buf.array();
 	}
 
-	public static byte[] encodePGet(final long transactionId, final String pattern) throws EncoderException {
+	public byte[] encodePGet(final long transactionId, final String pattern) throws EncoderException {
 
 		Objects.requireNonNull(pattern, "pattern must not be NULL");
 		if (pattern.isBlank()) {
@@ -63,15 +65,14 @@ public class ClientMessage {
 
 		final var buf = ByteBuffer.allocate(outLength);
 		buf.put(MessageType.PGET.toByte());
-		buf.put(ByteUtils.longToBytes(transactionId));
-		buf.put(ByteUtils.shortToBytes(patternBytes.length));
+		buf.put(this.byteUtils.longToBytes(transactionId));
+		buf.put(this.byteUtils.shortToBytes(patternBytes.length));
 		buf.put(patternBytes);
 
 		return buf.array();
 	}
 
-	public static byte[] encodeSet(final long transactionId, final String key, final String value)
-			throws EncoderException {
+	public byte[] encodeSet(final long transactionId, final String key, final String value) throws EncoderException {
 
 		final var keyBytes = key.getBytes(StandardCharsets.UTF_8);
 		if (keyBytes.length > Constants.MAX_KEY_LENGTH) {
@@ -88,16 +89,16 @@ public class ClientMessage {
 
 		final var buf = ByteBuffer.allocate(outLength);
 		buf.put(MessageType.SET.toByte());
-		buf.put(ByteUtils.longToBytes(transactionId));
-		buf.put(ByteUtils.shortToBytes(keyBytes.length));
-		buf.put(ByteUtils.intToBytes(valueBytes.length));
+		buf.put(this.byteUtils.longToBytes(transactionId));
+		buf.put(this.byteUtils.shortToBytes(keyBytes.length));
+		buf.put(this.byteUtils.intToBytes(valueBytes.length));
 		buf.put(keyBytes);
 		buf.put(valueBytes);
 
 		return buf.array();
 	}
 
-	public static byte[] encodeSubscribe(final long transactionId, final String key) throws EncoderException {
+	public byte[] encodeSubscribe(final long transactionId, final String key) throws EncoderException {
 
 		Objects.requireNonNull(key, "key must not be NULL");
 		if (key.isBlank()) {
@@ -120,14 +121,14 @@ public class ClientMessage {
 
 		final var buf = ByteBuffer.allocate(outLength);
 		buf.put(MessageType.SUBSCRIBE.toByte());
-		buf.put(ByteUtils.longToBytes(transactionId));
-		buf.put(ByteUtils.shortToBytes(keyBytes.length));
+		buf.put(this.byteUtils.longToBytes(transactionId));
+		buf.put(this.byteUtils.shortToBytes(keyBytes.length));
 		buf.put(keyBytes);
 
 		return buf.array();
 	}
 
-	public static byte[] encodePSubscribe(final long transactionId, final String pattern) throws EncoderException {
+	public byte[] encodePSubscribe(final long transactionId, final String pattern) throws EncoderException {
 
 		Objects.requireNonNull(pattern, "pattern must not be NULL");
 		if (pattern.isBlank()) {
@@ -147,8 +148,8 @@ public class ClientMessage {
 
 		final var buf = ByteBuffer.allocate(outLength);
 		buf.put(MessageType.PSUBSCRIBE.toByte());
-		buf.put(ByteUtils.longToBytes(transactionId));
-		buf.put(ByteUtils.shortToBytes(patternBytes.length));
+		buf.put(this.byteUtils.longToBytes(transactionId));
+		buf.put(this.byteUtils.shortToBytes(patternBytes.length));
 		buf.put(patternBytes);
 
 		return buf.array();

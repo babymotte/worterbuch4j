@@ -29,8 +29,9 @@ import net.bbmsoft.worterbuch.tcp.client.error.DecodeException;
 import net.bbmsoft.worterbuch.tcp.client.error.EncoderException;
 import net.bbmsoft.worterbuch.tcp.client.futures.RequestFuture;
 import net.bbmsoft.worterbuch.tcp.client.futures.ShutdownFuture;
-import net.bbmsoft.worterbuch.tcp.client.messages.ClientMessage;
+import net.bbmsoft.worterbuch.tcp.client.messages.ClientMessageEncoder;
 import net.bbmsoft.worterbuch.tcp.client.messages.ServerMessage;
+import net.bbmsoft.worterbuch.tcp.client.messages.ServerMessageDecoder;
 
 @Component(scope = ServiceScope.PROTOTYPE)
 public class WorterbuchAsyncTcpClient implements AsyncWorterbuchClient {
@@ -54,6 +55,7 @@ public class WorterbuchAsyncTcpClient implements AsyncWorterbuchClient {
 	private State state = State.DISCONNECTED;
 
 	// these fields may only be accessed from within the executor thread
+	private final ClientMessageEncoder enc = new ClientMessageEncoder();
 	private Socket socket;
 	private BufferedOutputStream tx;
 	private RxThread rxThread;
@@ -272,33 +274,33 @@ public class WorterbuchAsyncTcpClient implements AsyncWorterbuchClient {
 	}
 
 	private void sendGetRequest(final long transactionID, final String key) throws EncoderException, IOException {
-		final var bytes = ClientMessage.encodeGet(transactionID, key);
+		final var bytes = this.enc.encodeGet(transactionID, key);
 		this.tx.write(bytes);
 		this.tx.flush();
 	}
 
 	private void sendPGetRequest(final long transactionID, final String pattern) throws EncoderException, IOException {
-		final var bytes = ClientMessage.encodePGet(transactionID, pattern);
+		final var bytes = this.enc.encodePGet(transactionID, pattern);
 		this.tx.write(bytes);
 		this.tx.flush();
 	}
 
 	private void sendSetRequest(final long transactionID, final String key, final String value)
 			throws EncoderException, IOException {
-		final var bytes = ClientMessage.encodeSet(transactionID, key, value);
+		final var bytes = this.enc.encodeSet(transactionID, key, value);
 		this.tx.write(bytes);
 		this.tx.flush();
 	}
 
 	private void sendSubscribeRequest(final long transactionID, final String key) throws EncoderException, IOException {
-		final var bytes = ClientMessage.encodeSubscribe(transactionID, key);
+		final var bytes = this.enc.encodeSubscribe(transactionID, key);
 		this.tx.write(bytes);
 		this.tx.flush();
 	}
 
 	private void sendPSubscribeRequest(final long transactionID, final String pattern)
 			throws EncoderException, IOException {
-		final var bytes = ClientMessage.encodePSubscribe(transactionID, pattern);
+		final var bytes = this.enc.encodePSubscribe(transactionID, pattern);
 		this.tx.write(bytes);
 		this.tx.flush();
 	}
@@ -430,6 +432,7 @@ public class WorterbuchAsyncTcpClient implements AsyncWorterbuchClient {
 
 		private final InputStream inputStream;
 		private final Logger log;
+		private final ServerMessageDecoder dec;
 
 		private volatile boolean stopped;
 		private volatile Thread thread;
@@ -437,6 +440,7 @@ public class WorterbuchAsyncTcpClient implements AsyncWorterbuchClient {
 		RxThread(final String name, final InputStream inputStream, final Logger log) {
 			this.inputStream = inputStream;
 			this.log = log;
+			this.dec = new ServerMessageDecoder();
 			this.thread = new Thread(this::run, name);
 		}
 
@@ -451,7 +455,7 @@ public class WorterbuchAsyncTcpClient implements AsyncWorterbuchClient {
 		private void run() {
 			while (!this.stopped && !this.thread.isInterrupted()) {
 				try {
-					final var message = ServerMessage.read(this.inputStream);
+					final var message = this.dec.read(this.inputStream);
 					if (message.isEmpty()) {
 						this.log.info("Connection closed, terminating receiver thread.");
 						WorterbuchAsyncTcpClient.this.connectionLost();
