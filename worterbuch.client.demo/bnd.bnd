@@ -11,6 +11,4 @@ Bundle-Version: 1.0.0.${tstamp}
 javac.source: 17
 javac.target: 17
 
--includeresource: resources
-
 Private-Package: net.bbmsoft.worterbuch.client.demo
