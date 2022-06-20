@@ -153,7 +153,7 @@ public class WorterbuchAsyncTcpClient implements AsyncWorterbuchClient {
 			throw e;
 		}
 
-		return null;
+		return new Void();
 	}
 
 	Void doDisconnect() throws IOException {
@@ -170,7 +170,7 @@ public class WorterbuchAsyncTcpClient implements AsyncWorterbuchClient {
 			throw e;
 		}
 
-		return null;
+		return new Void();
 	}
 
 	private BlockingQueue<Optional<String>> doGet(final String key) throws EncoderException, IOException {
