@@ -15,7 +15,7 @@ public class ServerMessageDecoder {
 
 	private final ByteUtils byteUtils = new ByteUtils();
 
-	public Optional<ServerMessage> read(final InputStream data) throws DecodeException {
+	public Optional<? extends ServerMessage> read(final InputStream data) throws DecodeException {
 
 		try {
 
@@ -47,7 +47,7 @@ public class ServerMessageDecoder {
 		}
 	}
 
-	private Optional<ServerMessage> readPStateMessage(final InputStream data) throws IOException {
+	private Optional<PStateMessage> readPStateMessage(final InputStream data) throws IOException {
 
 		byte[] buf;
 		int bytes;
@@ -118,11 +118,10 @@ public class ServerMessageDecoder {
 			keyValuePairs.put(key, value);
 		}
 
-		return Optional.of(new ServerMessage(MessageType.PSTATE, transactionID, Optional.of(requestPattern),
-				Optional.of(keyValuePairs), Optional.empty(), Optional.empty()));
+		return Optional.of(new PStateMessage(transactionID, requestPattern, keyValuePairs));
 	}
 
-	private Optional<ServerMessage> readAckMessage(final InputStream data) throws IOException {
+	private Optional<AckMessage> readAckMessage(final InputStream data) throws IOException {
 
 		byte[] buf;
 		int bytes;
@@ -133,11 +132,10 @@ public class ServerMessageDecoder {
 		}
 		final var transactionID = this.byteUtils.bytesToLong(buf);
 
-		return Optional.of(new ServerMessage(MessageType.ACK, transactionID, Optional.empty(), Optional.empty(),
-				Optional.empty(), Optional.empty()));
+		return Optional.of(new AckMessage(transactionID));
 	}
 
-	private Optional<ServerMessage> readStateMessage(final InputStream data) throws IOException {
+	private Optional<StateMessage> readStateMessage(final InputStream data) throws IOException {
 
 		byte[] buf;
 		int bytes;
@@ -166,19 +164,23 @@ public class ServerMessageDecoder {
 		}
 		final var key = new String(buf, StandardCharsets.UTF_8).intern();
 
-		// TODO this reduces the max length of a value by half due to java ints being
-		// signed. How to fix this? (array can't be indexed using long)
-		buf = new byte[bytes = (int) valueLength];
-		if (data.readNBytes(buf, 0, bytes) < bytes) {
-			return Optional.empty();
+		Optional<String> value;
+
+		if (valueLength > 0) {
+
+			// TODO this reduces the max length of a value by half due to java ints being
+			// signed. How to fix this? (array can't be indexed using long)
+			buf = new byte[bytes = (int) valueLength];
+			if (data.readNBytes(buf, 0, bytes) < bytes) {
+				return Optional.empty();
+			}
+
+			value = Optional.of(new String(buf, StandardCharsets.UTF_8).intern());
+		} else {
+			value = Optional.empty();
 		}
-		final var value = new String(buf, StandardCharsets.UTF_8).intern();
 
-		final var keyValuePairs = new HashMap<String, String>();
-		keyValuePairs.put(key, value);
-
-		return Optional.of(new ServerMessage(MessageType.STATE, transactionID, Optional.empty(),
-				Optional.of(keyValuePairs), Optional.empty(), Optional.empty()));
+		return Optional.of(new StateMessage(transactionID, key, value));
 	}
 
 	private Optional<ServerMessage> readErrMessage(final InputStream data) throws IOException {
@@ -206,7 +208,6 @@ public class ServerMessageDecoder {
 		}
 		final var metadata = new String(buf, StandardCharsets.UTF_8).intern();
 
-		return Optional.of(new ServerMessage(MessageType.STATE, transactionID, Optional.empty(), Optional.empty(),
-				Optional.of((byte) errorCode), Optional.of(metadata)));
+		return Optional.of(new ErrMessage(transactionID, (byte) errorCode, metadata));
 	}
 }

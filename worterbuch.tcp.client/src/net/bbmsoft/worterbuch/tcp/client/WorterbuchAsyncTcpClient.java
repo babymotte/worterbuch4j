@@ -29,9 +29,13 @@ import net.bbmsoft.worterbuch.tcp.client.error.DecodeException;
 import net.bbmsoft.worterbuch.tcp.client.error.EncoderException;
 import net.bbmsoft.worterbuch.tcp.client.futures.RequestFuture;
 import net.bbmsoft.worterbuch.tcp.client.futures.ShutdownFuture;
+import net.bbmsoft.worterbuch.tcp.client.messages.AckMessage;
 import net.bbmsoft.worterbuch.tcp.client.messages.ClientMessageEncoder;
+import net.bbmsoft.worterbuch.tcp.client.messages.ErrMessage;
+import net.bbmsoft.worterbuch.tcp.client.messages.PStateMessage;
 import net.bbmsoft.worterbuch.tcp.client.messages.ServerMessage;
 import net.bbmsoft.worterbuch.tcp.client.messages.ServerMessageDecoder;
+import net.bbmsoft.worterbuch.tcp.client.messages.StateMessage;
 
 @Component(scope = ServiceScope.PROTOTYPE)
 public class WorterbuchAsyncTcpClient implements AsyncWorterbuchClient {
@@ -309,16 +313,16 @@ public class WorterbuchAsyncTcpClient implements AsyncWorterbuchClient {
 
 		switch (message.type()) {
 		case PSTATE:
-			this.distributePState(message);
+			this.distributePState((PStateMessage) message);
 			break;
 		case ACK:
-			this.distributeAck(message);
+			this.distributeAck((AckMessage) message);
 			break;
 		case STATE:
-			this.distributeState(message);
+			this.distributeState((StateMessage) message);
 			break;
 		case ERR:
-			this.distributeErr(message);
+			this.distributeErr((ErrMessage) message);
 			break;
 		default: {
 			// ignore client messages
@@ -344,63 +348,58 @@ public class WorterbuchAsyncTcpClient implements AsyncWorterbuchClient {
 		}
 	}
 
-	private void distributeState(final ServerMessage msg) throws InterruptedException {
-		final var consumer = this.pendingGetRequests.remove(msg.transactionID());
+	private void distributeState(final StateMessage msg) throws InterruptedException {
+
+		final var key = msg.key();
+		final var value = msg.value();
+
+		final var consumer = this.pendingGetRequests.remove(msg.transactionId());
 		if (consumer != null) {
-			final var values = msg.keyValuePairs().get().values();
-			final var value = values.isEmpty() ? Optional.<String>empty() : Optional.of(values.iterator().next());
 			consumer.put(value);
 		}
 
-		final var pconsumer = this.pendingPGetRequests.remove(msg.transactionID());
-		if (pconsumer != null) {
-			final var values = msg.keyValuePairs().get();
-			pconsumer.put(values);
+		final var subscription = this.subscriptions.get(msg.transactionId());
+		if (subscription != null) {
+			value.ifPresent(v -> subscription.accept(Optional.of(new Event(key, v))));
 		}
 
-		final var subscription = this.subscriptions.get(msg.transactionID());
-		if (subscription != null) {
-			final var values = msg.keyValuePairs().get();
-			for (final var entry : values.entrySet()) {
-				subscription.accept(Optional.of(new Event(entry.getKey(), entry.getValue())));
-			}
-		}
 	}
 
-	private void distributeAck(final ServerMessage msg) throws InterruptedException {
+	private void distributeAck(final AckMessage msg) throws InterruptedException {
 		{
-			final var consumer = this.pendingSetRequests.remove(msg.transactionID());
+			final var consumer = this.pendingSetRequests.remove(msg.transactionId());
 			if (consumer != null) {
 				consumer.put(new Void());
 			}
 		}
 
 		{
-			final var consumer = this.pendingSubscribeRequests.remove(msg.transactionID());
+			final var consumer = this.pendingSubscribeRequests.remove(msg.transactionId());
 			if (consumer != null) {
-				this.subscriptions.put(msg.transactionID(), consumer.onEvent);
+				this.subscriptions.put(msg.transactionId(), consumer.onEvent);
 				consumer.result.put(new Void());
 			}
 		}
 	}
 
-	private void distributePState(final ServerMessage msg) throws InterruptedException {
-		final var consumer = this.pendingPGetRequests.remove(msg.transactionID());
+	private void distributePState(final PStateMessage msg) throws InterruptedException {
+		final var consumer = this.pendingPGetRequests.remove(msg.transactionId());
+
+		final var values = msg.keyValuePairs();
+
 		if (consumer != null) {
-			final var values = msg.keyValuePairs().get();
 			consumer.put(values);
 		}
 
-		final var subscription = this.subscriptions.get(msg.transactionID());
+		final var subscription = this.subscriptions.get(msg.transactionId());
 		if (subscription != null) {
-			final var values = msg.keyValuePairs().get();
 			for (final var entry : values.entrySet()) {
 				subscription.accept(Optional.of(new Event(entry.getKey(), entry.getValue())));
 			}
 		}
 	}
 
-	private void distributeErr(final ServerMessage msg) {
+	private void distributeErr(final ErrMessage msg) {
 		// TODO Auto-generated method stub
 
 	}
