@@ -7,6 +7,8 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Optional;
 
+import net.bbmsoft.worterbuch.client.api.AsyncWorterbuchClient.Handshake;
+import net.bbmsoft.worterbuch.client.api.AsyncWorterbuchClient.ProtocolVersion;
 import net.bbmsoft.worterbuch.client.api.Constants;
 import net.bbmsoft.worterbuch.tcp.client.error.DecodeException;
 import net.bbmsoft.worterbuch.tcp.client.utils.ByteUtils;
@@ -38,6 +40,9 @@ public class ServerMessageDecoder {
 			}
 			case ERR: {
 				yield this.readErrMessage(data);
+			}
+			case HSHK: {
+				yield this.readHandshakeMessage(data);
 			}
 			default:
 				yield Optional.empty();
@@ -209,5 +214,39 @@ public class ServerMessageDecoder {
 		final var metadata = new String(buf, StandardCharsets.UTF_8).intern();
 
 		return Optional.of(new ErrMessage(transactionID, (byte) errorCode, metadata));
+	}
+
+	private Optional<HandshakeMessage> readHandshakeMessage(final InputStream data) throws IOException {
+
+		byte[] buf;
+		int bytes;
+
+		final var numProtocolVersions = data.read();
+
+		var supportedProtocolVersions = new ArrayList<ProtocolVersion>();
+
+		for (int i = 0; i < numProtocolVersions; i++) {
+
+			buf = new byte[bytes = Constants.PROTOCOL_VERSION_SEGMENT_BYTES];
+			if (data.readNBytes(buf, 0, bytes) < bytes) {
+				return Optional.empty();
+			}
+			var major = this.byteUtils.bytesToShort(buf);
+
+			buf = new byte[bytes = Constants.PROTOCOL_VERSION_SEGMENT_BYTES];
+			if (data.readNBytes(buf, 0, bytes) < bytes) {
+				return Optional.empty();
+			}
+			var minor = this.byteUtils.bytesToShort(buf);
+
+			supportedProtocolVersions.add(new ProtocolVersion(major, minor));
+		}
+
+		var separator = (char) data.read();
+		var wildcard = (char) data.read();
+		var multiWildcard = (char) data.read();
+
+		return Optional
+				.of(new HandshakeMessage(new Handshake(separator, wildcard, multiWildcard, supportedProtocolVersions)));
 	}
 }

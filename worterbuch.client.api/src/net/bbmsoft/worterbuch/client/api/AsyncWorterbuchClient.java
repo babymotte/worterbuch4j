@@ -55,7 +55,7 @@ public interface AsyncWorterbuchClient extends AutoCloseable {
 	 * @throws IllegalArgumentException if the provided {@link URL} uses a protocol
 	 *                                  the client does not support
 	 */
-	public Future<Void> connect(URI uri);
+	public Future<Handshake> connect(URI uri);
 
 	/**
 	 * Closes the connection to the server. This function must not be called without
@@ -157,7 +157,7 @@ public interface AsyncWorterbuchClient extends AutoCloseable {
 	 *         as a result of this subscription
 	 * @throws IllegalArgumentException if the key contains a wildcard
 	 */
-	public Future<Void> subscribe(String key, Consumer<Optional<Event>> onEvent);
+	public Future<Void> subscribe(String key, Consumer<Optional<Event>> onEvent, boolean unique);
 
 	/**
 	 * Perform a SUBSCRIBE request to the server. This function must not be called
@@ -179,7 +179,7 @@ public interface AsyncWorterbuchClient extends AutoCloseable {
 	 *         client will push any {@link Event Events} it receives from the server
 	 *         as a result of this subscription
 	 */
-	public Future<Void> psubscribe(String pattern, Consumer<Optional<Event>> onEvent);
+	public Future<Void> psubscribe(String pattern, Consumer<Optional<Event>> onEvent, boolean unique);
 
 	/**
 	 * Runs the provided action when the connection is closed by the server. Call
@@ -196,6 +196,13 @@ public interface AsyncWorterbuchClient extends AutoCloseable {
 	 *
 	 */
 	public record Event(String key, String value) {
+	}
+
+	public record Handshake(char separator, char wildcard, char multiWildcard,
+			List<ProtocolVersion> supportedProtocolVersions) {
+	}
+
+	public record ProtocolVersion(int major, int minor) {
 	}
 
 	public record Void() {

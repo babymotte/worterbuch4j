@@ -12,7 +12,7 @@ import java.util.function.Consumer;
 
 import org.osgi.annotation.versioning.ProviderType;
 
-import net.bbmsoft.worterbuch.client.api.AsyncWorterbuchClient.Void;
+import net.bbmsoft.worterbuch.client.api.AsyncWorterbuchClient.Handshake;
 
 /**
  * A client for a Wörterbuch server. Once connected it can be used to get, set
@@ -56,7 +56,7 @@ public interface CachingWorterbuchClient extends AutoCloseable {
 	 * @throws IllegalArgumentException if the provided {@link URL} uses a protocol
 	 *                                  the client does not support
 	 */
-	public Future<Void> connect(URI uri);
+	public Future<Handshake> connect(URI uri);
 
 	/**
 	 * Closes the connection to the server. This function must not be called without

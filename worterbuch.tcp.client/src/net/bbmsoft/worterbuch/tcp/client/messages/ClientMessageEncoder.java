@@ -98,7 +98,7 @@ public class ClientMessageEncoder {
 		return buf.array();
 	}
 
-	public byte[] encodeSubscribe(final long transactionId, final String key) throws EncoderException {
+	public byte[] encodeSubscribe(final long transactionId, final String key, boolean unique) throws EncoderException {
 
 		Objects.requireNonNull(key, "key must not be NULL");
 		if (key.isBlank()) {
@@ -117,18 +117,20 @@ public class ClientMessageEncoder {
 		}
 
 		final var outLength = Constants.MESSAGE_TYPE_BYTES + Constants.TRANSACTION_ID_BYTES + Constants.KEY_LENGTH_BYTES
-				+ keyBytes.length;
+				+ keyBytes.length + 1;
 
 		final var buf = ByteBuffer.allocate(outLength);
 		buf.put(MessageType.SUBSCRIBE.toByte());
 		buf.put(this.byteUtils.longToBytes(transactionId));
 		buf.put(this.byteUtils.shortToBytes(keyBytes.length));
 		buf.put(keyBytes);
+		buf.put(unique ? (byte) 1 : (byte) 0);
 
 		return buf.array();
 	}
 
-	public byte[] encodePSubscribe(final long transactionId, final String pattern) throws EncoderException {
+	public byte[] encodePSubscribe(final long transactionId, final String pattern, boolean unique)
+			throws EncoderException {
 
 		Objects.requireNonNull(pattern, "pattern must not be NULL");
 		if (pattern.isBlank()) {
@@ -144,13 +146,14 @@ public class ClientMessageEncoder {
 		}
 
 		final var outLength = Constants.MESSAGE_TYPE_BYTES + Constants.TRANSACTION_ID_BYTES
-				+ Constants.PATTERN_LENGTH_BYTES + patternBytes.length;
+				+ Constants.PATTERN_LENGTH_BYTES + patternBytes.length + 1;
 
 		final var buf = ByteBuffer.allocate(outLength);
 		buf.put(MessageType.PSUBSCRIBE.toByte());
 		buf.put(this.byteUtils.longToBytes(transactionId));
 		buf.put(this.byteUtils.shortToBytes(patternBytes.length));
 		buf.put(patternBytes);
+		buf.put(unique ? (byte) 1 : (byte) 0);
 
 		return buf.array();
 	}

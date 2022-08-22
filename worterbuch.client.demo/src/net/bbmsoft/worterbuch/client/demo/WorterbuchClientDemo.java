@@ -19,8 +19,9 @@ import net.bbmsoft.worterbuch.client.api.AsyncWorterbuchClient;
 import net.bbmsoft.worterbuch.client.api.AsyncWorterbuchClient.Event;
 
 @Component(property = { "osgi.command.scope=wb", "osgi.command.function=get", "osgi.command.function=pget",
-		"osgi.command.function=set", "osgi.command.function=sub",
-		"osgi.command.function=psub" }, service = WorterbuchClientDemo.class, immediate = true)
+		"osgi.command.function=set", "osgi.command.function=sub", "osgi.command.function=psub",
+		"osgi.command.function=subu",
+		"osgi.command.function=psubu" }, service = WorterbuchClientDemo.class, immediate = true)
 public class WorterbuchClientDemo {
 
 	private final Logger log = LoggerFactory.getLogger(this.getClass());
@@ -38,7 +39,8 @@ public class WorterbuchClientDemo {
 
 		try {
 			this.client.onConnectionLost(this::shutdown);
-			this.client.connect(uri).get();
+			var handshake = this.client.connect(uri).get();
+			this.log.info("Successfully connected: {}", handshake);
 		} catch (InterruptedException | ExecutionException e) {
 			this.log.error("Could not establish connection:", e);
 			return;
@@ -68,12 +70,22 @@ public class WorterbuchClientDemo {
 	}
 
 	public String sub(final String key) throws InterruptedException, ExecutionException {
-		this.client.subscribe(key, e -> e.ifPresent(this::logEvent)).get();
+		this.client.subscribe(key, e -> e.ifPresent(this::logEvent), false).get();
 		return "Ok";
 	}
 
 	public String psub(final String pattern) throws InterruptedException, ExecutionException {
-		this.client.psubscribe(pattern, e -> e.ifPresent(this::logEvent)).get();
+		this.client.psubscribe(pattern, e -> e.ifPresent(this::logEvent), false).get();
+		return "Ok";
+	}
+
+	public String subu(final String key) throws InterruptedException, ExecutionException {
+		this.client.subscribe(key, e -> e.ifPresent(this::logEvent), true).get();
+		return "Ok";
+	}
+
+	public String psubu(final String pattern) throws InterruptedException, ExecutionException {
+		this.client.psubscribe(pattern, e -> e.ifPresent(this::logEvent), true).get();
 		return "Ok";
 	}
 

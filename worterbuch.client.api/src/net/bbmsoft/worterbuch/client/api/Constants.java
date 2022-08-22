@@ -12,6 +12,8 @@ public class Constants {
 	public static final int NUM_KEY_VALUE_PARIS_BYTES = 4;
 	public static final int ERROR_CODE_BYTES = 1;
 	public static final int METADATA_LENGTH_BYTES = 4;
+	public static final int NUM_PROTOCOL_VERSION_BYTES = 1;
+	public static final int PROTOCOL_VERSION_SEGMENT_BYTES = 2;
 
 	public static final long MAX_KEY_LENGTH = (long) (Math.pow(2, Constants.KEY_LENGTH_BYTES * 8) - 1);
 	public static final long MAX_PATTERN_LENGTH = (long) (Math.pow(2, Constants.PATTERN_LENGTH_BYTES * 8) - 1);

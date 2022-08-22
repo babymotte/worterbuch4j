@@ -3,6 +3,7 @@ package net.bbmsoft.worterbuch.tcp.client;
 import java.io.BufferedOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.net.Socket;
 import java.net.URI;
 import java.util.Arrays;
@@ -32,6 +33,8 @@ import net.bbmsoft.worterbuch.tcp.client.futures.ShutdownFuture;
 import net.bbmsoft.worterbuch.tcp.client.messages.AckMessage;
 import net.bbmsoft.worterbuch.tcp.client.messages.ClientMessageEncoder;
 import net.bbmsoft.worterbuch.tcp.client.messages.ErrMessage;
+import net.bbmsoft.worterbuch.tcp.client.messages.HandshakeMessage;
+import net.bbmsoft.worterbuch.tcp.client.messages.MessageType;
 import net.bbmsoft.worterbuch.tcp.client.messages.PStateMessage;
 import net.bbmsoft.worterbuch.tcp.client.messages.ServerMessage;
 import net.bbmsoft.worterbuch.tcp.client.messages.ServerMessageDecoder;
@@ -71,7 +74,7 @@ public class WorterbuchAsyncTcpClient implements AsyncWorterbuchClient {
 	}
 
 	@Override
-	public Future<Void> connect(final URI uri) {
+	public Future<Handshake> connect(final URI uri) {
 		this.transitionState(State.CONNECTING, State.DISCONNECTED);
 
 		final var proto = uri.getScheme();
@@ -122,16 +125,16 @@ public class WorterbuchAsyncTcpClient implements AsyncWorterbuchClient {
 	}
 
 	@Override
-	public Future<Void> subscribe(final String key, final Consumer<Optional<Event>> onEvent) {
+	public Future<Void> subscribe(final String key, final Consumer<Optional<Event>> onEvent, boolean unique) {
 		this.assertState(State.CONNECTING, State.CONNECTED);
-		final var result = this.executor.submit(() -> this.doSubscribe(key, onEvent));
+		final var result = this.executor.submit(() -> this.doSubscribe(key, onEvent, unique));
 		return new RequestFuture<>(result);
 	}
 
 	@Override
-	public Future<Void> psubscribe(final String pattern, final Consumer<Optional<Event>> onEvent) {
+	public Future<Void> psubscribe(final String pattern, final Consumer<Optional<Event>> onEvent, boolean unique) {
 		this.assertState(State.CONNECTING, State.CONNECTED);
-		final var result = this.executor.submit(() -> this.doPSubscribe(pattern, onEvent));
+		final var result = this.executor.submit(() -> this.doPSubscribe(pattern, onEvent, unique));
 		return new RequestFuture<>(result);
 	}
 
@@ -140,14 +143,31 @@ public class WorterbuchAsyncTcpClient implements AsyncWorterbuchClient {
 		this.onConnectionLost = action;
 	}
 
-	Void doConnect(final String host, final int port) throws IOException {
+	Handshake doConnect(final String host, final int port) throws IOException, DecodeException {
 
 		this.log.info("Connecting to server tcp://{}:{} …", host, port);
 
+		Handshake handshake;
+
 		try {
 			this.socket = new Socket(host, port);
-			this.rxThread = this.createRxThread(this.socket.getInputStream());
-			this.tx = new BufferedOutputStream(this.socket.getOutputStream());
+
+			InputStream inputStream = this.socket.getInputStream();
+			OutputStream outputStream = this.socket.getOutputStream();
+
+			var dec = new ServerMessageDecoder();
+			var handshakeMessage = dec.read(inputStream);
+
+			if (handshakeMessage.isEmpty()) {
+				throw new IOException("Connection closed before handshake was received.");
+			} else if (!MessageType.HSHK.equals(handshakeMessage.get().type())) {
+				throw new IOException("Server sent invalid handshake message: " + handshakeMessage.get());
+			} else {
+				handshake = ((HandshakeMessage) handshakeMessage.get()).handshake();
+			}
+
+			this.rxThread = this.createRxThread(dec, inputStream);
+			this.tx = new BufferedOutputStream(outputStream);
 			this.transitionState(State.CONNECTED, State.CONNECTING);
 			this.rxThread.start();
 			this.log.info("Connected.");
@@ -157,7 +177,7 @@ public class WorterbuchAsyncTcpClient implements AsyncWorterbuchClient {
 			throw e;
 		}
 
-		return new Void();
+		return handshake;
 	}
 
 	Void doDisconnect() throws IOException {
@@ -231,7 +251,7 @@ public class WorterbuchAsyncTcpClient implements AsyncWorterbuchClient {
 		return queue;
 	}
 
-	private BlockingQueue<Void> doSubscribe(final String key, final Consumer<Optional<Event>> onEvent)
+	private BlockingQueue<Void> doSubscribe(final String key, final Consumer<Optional<Event>> onEvent, boolean unique)
 			throws EncoderException, IOException {
 		this.assertState(State.CONNECTED);
 
@@ -241,7 +261,7 @@ public class WorterbuchAsyncTcpClient implements AsyncWorterbuchClient {
 		this.pendingSubscribeRequests.put(transactionID, new SubscribeRequest(onEvent, queue));
 
 		try {
-			this.sendSubscribeRequest(transactionID, key);
+			this.sendSubscribeRequest(transactionID, key, unique);
 		} catch (EncoderException | IOException e) {
 			this.pendingGetRequests.remove(transactionID);
 			throw e;
@@ -250,7 +270,7 @@ public class WorterbuchAsyncTcpClient implements AsyncWorterbuchClient {
 		return queue;
 	}
 
-	private BlockingQueue<Void> doPSubscribe(final String pattern, final Consumer<Optional<Event>> onEvent)
+	private BlockingQueue<Void> doPSubscribe(final String pattern, final Consumer<Optional<Event>> onEvent, boolean unique)
 			throws EncoderException, IOException {
 		this.assertState(State.CONNECTED);
 
@@ -260,7 +280,7 @@ public class WorterbuchAsyncTcpClient implements AsyncWorterbuchClient {
 		this.pendingSubscribeRequests.put(transactionID, new SubscribeRequest(onEvent, queue));
 
 		try {
-			this.sendPSubscribeRequest(transactionID, pattern);
+			this.sendPSubscribeRequest(transactionID, pattern, unique);
 		} catch (EncoderException | IOException e) {
 			this.pendingGetRequests.remove(transactionID);
 			throw e;
@@ -269,10 +289,10 @@ public class WorterbuchAsyncTcpClient implements AsyncWorterbuchClient {
 		return queue;
 	}
 
-	private RxThread createRxThread(final InputStream inputStream) {
+	private RxThread createRxThread(ServerMessageDecoder dec, final InputStream inputStream) {
 
 		final var name = this.getClass().getSimpleName() + "-TCP-rx";
-		final var thread = new RxThread(name, inputStream, this.log);
+		final var thread = new RxThread(name, dec, inputStream, this.log);
 
 		return thread;
 	}
@@ -296,15 +316,15 @@ public class WorterbuchAsyncTcpClient implements AsyncWorterbuchClient {
 		this.tx.flush();
 	}
 
-	private void sendSubscribeRequest(final long transactionID, final String key) throws EncoderException, IOException {
-		final var bytes = this.enc.encodeSubscribe(transactionID, key);
+	private void sendSubscribeRequest(final long transactionID, final String key, boolean unique) throws EncoderException, IOException {
+		final var bytes = this.enc.encodeSubscribe(transactionID, key, unique);
 		this.tx.write(bytes);
 		this.tx.flush();
 	}
 
-	private void sendPSubscribeRequest(final long transactionID, final String pattern)
+	private void sendPSubscribeRequest(final long transactionID, final String pattern, boolean unique)
 			throws EncoderException, IOException {
-		final var bytes = this.enc.encodePSubscribe(transactionID, pattern);
+		final var bytes = this.enc.encodePSubscribe(transactionID, pattern, unique);
 		this.tx.write(bytes);
 		this.tx.flush();
 	}
@@ -324,6 +344,8 @@ public class WorterbuchAsyncTcpClient implements AsyncWorterbuchClient {
 		case ERR:
 			this.distributeErr((ErrMessage) message);
 			break;
+		case HSHK:
+			throw new IllegalStateException("Server should not be sending handshakes anymore!");
 		default: {
 			// ignore client messages
 		}
@@ -436,10 +458,10 @@ public class WorterbuchAsyncTcpClient implements AsyncWorterbuchClient {
 		private volatile boolean stopped;
 		private volatile Thread thread;
 
-		RxThread(final String name, final InputStream inputStream, final Logger log) {
+		RxThread(final String name, ServerMessageDecoder dec, final InputStream inputStream, final Logger log) {
 			this.inputStream = inputStream;
 			this.log = log;
-			this.dec = new ServerMessageDecoder();
+			this.dec = dec;
 			this.thread = new Thread(this::run, name);
 		}
 

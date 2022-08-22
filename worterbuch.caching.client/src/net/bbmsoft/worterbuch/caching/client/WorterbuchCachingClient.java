@@ -17,7 +17,7 @@ import org.osgi.service.component.annotations.Reference;
 
 import net.bbmsoft.worterbuch.client.api.AsyncWorterbuchClient;
 import net.bbmsoft.worterbuch.client.api.AsyncWorterbuchClient.Event;
-import net.bbmsoft.worterbuch.client.api.AsyncWorterbuchClient.Void;
+import net.bbmsoft.worterbuch.client.api.AsyncWorterbuchClient.Handshake;
 import net.bbmsoft.worterbuch.client.api.CachingWorterbuchClient;
 
 @Component
@@ -79,7 +79,7 @@ public class WorterbuchCachingClient implements CachingWorterbuchClient {
 	}
 
 	@Override
-	public Future<Void> connect(final URI uri) {
+	public Future<Handshake> connect(final URI uri) {
 		return this.delegateClient.connect(uri);
 	}
 
@@ -101,7 +101,7 @@ public class WorterbuchCachingClient implements CachingWorterbuchClient {
 	private void addSubscription(final String key) {
 		final var needsSubscription = this.subscribedKeys.add(key);
 		if (needsSubscription) {
-			this.delegateClient.subscribe(key, this::insertValue);
+			this.delegateClient.subscribe(key, this::insertValue, true);
 		}
 	}
 
