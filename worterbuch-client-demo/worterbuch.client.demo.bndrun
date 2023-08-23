@@ -11,7 +11,7 @@
 -runrequires: \
 	osgi.identity;filter:='(osgi.identity=org.apache.felix.gogo.shell)',\
 	osgi.identity;filter:='(osgi.identity=org.apache.felix.gogo.command)',\
-	osgi.identity;filter:='(osgi.identity=worterbuch.client.demo)'
+	bnd.identity;id=worterbuch-client-demo
 -runbundles: \
 	ch.qos.logback.classic;version='[1.2.3,1.2.4)',\
 	ch.qos.logback.core;version='[1.2.3,1.2.4)',\
@@ -31,9 +31,9 @@
 	org.eclipse.jetty.websocket.common;version='[9.4.12,9.4.13)',\
 	org.eclipse.jetty.xml;version='[9.4.12,9.4.13)',\
 	slf4j.api;version='[1.7.25,1.7.26)',\
-	worterbuch.client.demo;version=snapshot,\
 	com.fasterxml.jackson.core.jackson-annotations;version='[2.15.2,2.15.3)',\
 	com.fasterxml.jackson.core.jackson-core;version='[2.15.2,2.15.3)',\
 	com.fasterxml.jackson.core.jackson-databind;version='[2.15.2,2.15.3)',\
-	worterbuch-client;version=snapshot
+	worterbuch-client;version=snapshot,\
+	worterbuch-client-demo;version=snapshot
 -runvm: -Dlogback.configurationFile=resources/logback.xml

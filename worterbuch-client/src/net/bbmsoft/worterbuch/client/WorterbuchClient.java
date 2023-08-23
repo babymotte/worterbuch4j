@@ -783,6 +783,7 @@ public class WorterbuchClient implements AutoCloseable {
 
 		try {
 			this.session = this.client.connect(socket, uri).get(5, TimeUnit.SECONDS);
+			this.session.getPolicy().setMaxTextMessageSize(1024 * 1024 * 1024);
 		} catch (final ExecutionException | IOException e) {
 			this.onError.accept(new WorterbuchException("Failed to connect to server", e));
 		} catch (final TimeoutException e) {

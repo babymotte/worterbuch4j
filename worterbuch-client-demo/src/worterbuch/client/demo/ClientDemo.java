@@ -27,28 +27,13 @@ public class ClientDemo {
 			throws URISyntaxException, WorterbuchException, InterruptedException, ExecutionException {
 		this.ctx = ctx;
 
-		final var uri = new URI("ws://localhost:8080/ws");
+		final var uri = new URI("ws://worterbuch.local/ws");
 
 		final var wb = WorterbuchClient.connect(uri, Arrays.asList("clientDemo/#"),
 				Arrays.asList(KeyValuePair.of("clientDemo/lastWill", "nein")), this::exit, this::error);
 
-		wb.set("clientDemo/hello", 123, System.err::println);
+		wb.pSubscribe("#", true, Object.class, System.err::println, this::error);
 
-		final var gibtsnicht = wb.get("gibtsnicht", String.class).get();
-		System.err.println(gibtsnicht);
-
-		final var lsRoot = wb.ls(null).get();
-		System.err.println(lsRoot);
-
-		final var lsSys = wb.ls("$SYS").get();
-		System.err.println(lsSys);
-
-		final var lsSysStore = wb.ls("$SYS/store").get();
-		System.err.println(lsSysStore);
-
-//		wb.close();
-
-//		wb.pSubscribe("#", false, Object.class, System.out::println, System.err::println);
 	}
 
 	private void exit(final Integer errorCode, final String message) {
