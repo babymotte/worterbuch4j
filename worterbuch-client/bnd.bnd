@@ -1,0 +1,17 @@
+-buildpath: \
+	slf4j.api,\
+	org.eclipse.jetty.websocket.api,\
+	org.eclipse.jetty.websocket.client,\
+	org.eclipse.jetty.websocket.common,\
+	org.eclipse.jetty.util,\
+	org.eclipse.jetty.io,\
+	org.apache.servicemix.specs.annotation-api-1.3,\
+	com.fasterxml.jackson.core.jackson-core,\
+	com.fasterxml.jackson.core.jackson-databind,\
+	com.fasterxml.jackson.core.jackson-annotations
+
+-privatepackage: \
+	net.bbmsoft.worterbuch.client.model,\
+	net.bbmsoft.worterbuch.client.pending
+
+Export-Package: net.bbmsoft.worterbuch.client

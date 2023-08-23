@@ -1,2 +1,6 @@
 # List repository contents using GAV coordinates
 
+org.eclipse.jetty.websocket:websocket-common:jar:9.4.12.v20180830
+com.fasterxml.jackson.core:jackson-core:jar:2.15.2
+com.fasterxml.jackson.core:jackson-databind:jar:2.15.2
+com.fasterxml.jackson.core:jackson-annotations:jar:2.15.2
