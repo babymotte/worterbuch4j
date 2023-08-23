@@ -15,4 +15,4 @@
 	net.bbmsoft.worterbuch.client.pending
 
 Export-Package: net.bbmsoft.worterbuch.client
-Bundle-Version: 0.37.0
+Bundle-Version: 0.37.1
