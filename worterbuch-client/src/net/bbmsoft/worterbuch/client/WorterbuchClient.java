@@ -797,15 +797,16 @@ public class WorterbuchClient implements AutoCloseable {
 	private void checkKeepalive() {
 		final var now = System.currentTimeMillis();
 
+		final var lag = this.lastKeepaliveReceived - this.lastKeepaliveSent;
+
 		if ((now - this.lastKeepaliveSent) >= 1000) {
 			this.sendWsMessage(null, e -> this.onError.accept(new WorterbuchException("Could not send keepalive", e)));
 		}
 
-		final var elapsed = now - this.lastKeepaliveReceived;
-		if (elapsed >= 2000) {
-			this.log.warn("Server has been inactive for {} seconds …", elapsed / 1000);
+		if (lag >= 2000) {
+			this.log.warn("Server has been inactive for {} seconds …", lag / 1000);
 		}
-		if (elapsed >= 5000) {
+		if (lag >= 5000) {
 			this.log.warn("Server has been inactive for too long, disconnecting.");
 			this.close();
 		}
