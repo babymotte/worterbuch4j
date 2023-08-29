@@ -321,7 +321,9 @@ public class WorterbuchClient implements AutoCloseable {
 	private <T> void doDelete(final long tid, final String key, final Class<T> type,
 			final Consumer<Optional<T>> callback, final Consumer<WorterbuchException> onError) {
 
-		this.pendingDeletes.put(tid, new PendingDelete<>(callback, type));
+		if (callback != null) {
+			this.pendingDeletes.put(tid, new PendingDelete<>(callback, Objects.requireNonNull(type)));
+		}
 
 		final var del = new Delete();
 		del.setTransactionId(tid);
@@ -335,7 +337,9 @@ public class WorterbuchClient implements AutoCloseable {
 	private <T> void doPDelete(final long tid, final String pattern, final Class<T> type,
 			final Consumer<List<KeyValuePair<T>>> callback, final Consumer<WorterbuchException> onError) {
 
-		this.pendingPDeletes.put(tid, new PendingPDelete<>(callback, type));
+		if (callback != null) {
+			this.pendingPDeletes.put(tid, new PendingPDelete<>(callback, Objects.requireNonNull(type)));
+		}
 
 		final var pdel = new PDelete();
 		pdel.setTransactionId(tid);
