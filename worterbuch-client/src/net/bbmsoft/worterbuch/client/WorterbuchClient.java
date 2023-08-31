@@ -63,7 +63,7 @@ public class WorterbuchClient implements AutoCloseable {
 
 	public static WorterbuchClient connect(final URI uri, final List<String> graveGoods,
 			final List<KeyValuePair<?>> lastWill, final BiConsumer<Integer, String> onDisconnect,
-			final Consumer<Throwable> onError) throws InterruptedException {
+			final Consumer<Throwable> onError) throws InterruptedException, TimeoutException {
 
 		Objects.requireNonNull(uri);
 		Objects.requireNonNull(onDisconnect);
@@ -75,7 +75,11 @@ public class WorterbuchClient implements AutoCloseable {
 		exec.execute(() -> WorterbuchClient.initWorterbuchClient(uri, graveGoods, lastWill, onDisconnect, onError, exec,
 				queue));
 
-		return queue.poll(5, TimeUnit.SECONDS);
+		final var wb = queue.poll(5, TimeUnit.SECONDS);
+		if (wb == null) {
+			throw new TimeoutException();
+		}
+		return wb;
 	}
 
 	private static void initWorterbuchClient(final URI uri, final List<String> graveGoods,
