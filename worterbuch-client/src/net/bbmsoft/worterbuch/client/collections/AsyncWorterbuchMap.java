@@ -31,7 +31,7 @@ public class AsyncWorterbuchMap<T> implements Map<String, T> {
 		this.localCache = new HashMap<>();
 		try {
 			final var kvps = wbClient.pGet(this.rootKey + "/?", valueType).get();
-			kvps.forEach(kvp -> this.localCache.put(this.unescape(kvp.getKey().substring(this.rootKey.length() + 1)),
+			kvps.forEach(kvp -> this.localCache.put(Utils.unescape(kvp.getKey().substring(this.rootKey.length() + 1)),
 					kvp.getValue()));
 		} catch (final InterruptedException e) {
 			Thread.currentThread().interrupt();
@@ -127,15 +127,7 @@ public class AsyncWorterbuchMap<T> implements Map<String, T> {
 	}
 
 	private String fullKey(final Object k) {
-		return this.rootKey + "/" + this.escape(k.toString());
-	}
-
-	private String escape(final String string) {
-		return string.replace("/", "%2F");
-	}
-
-	private String unescape(final String string) {
-		return string.replace("%2F", "/");
+		return this.rootKey + "/" + Utils.escape(k.toString());
 	}
 
 	class SyncedKeySet implements Set<String> {
@@ -158,7 +150,7 @@ public class AsyncWorterbuchMap<T> implements Map<String, T> {
 
 		@Override
 		public boolean contains(final Object o) {
-			return this.delegate.contains(AsyncWorterbuchMap.this.escape(o.toString()));
+			return this.delegate.contains(Utils.escape(o.toString()));
 		}
 
 		@Override

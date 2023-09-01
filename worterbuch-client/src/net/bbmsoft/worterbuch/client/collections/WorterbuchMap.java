@@ -49,7 +49,7 @@ public class WorterbuchMap<T> implements Map<String, T> {
 
 	@Override
 	public boolean containsKey(final Object key) {
-		final var escapedKey = this.escape(key.toString());
+		final var escapedKey = Utils.escape(key.toString());
 		try {
 			final var keys = this.wbClient.ls(this.rootKey).get();
 			return keys.contains(escapedKey);
@@ -76,7 +76,7 @@ public class WorterbuchMap<T> implements Map<String, T> {
 
 	@Override
 	public T get(final Object key) {
-		final var escapedKey = this.escape(key.toString());
+		final var escapedKey = Utils.escape(key.toString());
 		final var fullKey = this.rootKey + "/" + escapedKey;
 		try {
 			final var state = this.wbClient.get(fullKey, this.valueType).get();
@@ -91,7 +91,7 @@ public class WorterbuchMap<T> implements Map<String, T> {
 
 	@Override
 	public T put(final String key, final T value) {
-		final var escapedKey = this.escape(key.toString());
+		final var escapedKey = Utils.escape(key.toString());
 		final var fullKey = this.rootKey + "/" + escapedKey;
 		try {
 			final var state = this.wbClient.get(fullKey, this.valueType).get();
@@ -108,7 +108,7 @@ public class WorterbuchMap<T> implements Map<String, T> {
 
 	@Override
 	public T remove(final Object key) {
-		final var escapedKey = this.escape(key.toString());
+		final var escapedKey = Utils.escape(key.toString());
 		final var fullKey = this.rootKey + "/" + escapedKey;
 		try {
 			final var state = this.wbClient.delete(fullKey, this.valueType).get();
@@ -135,7 +135,7 @@ public class WorterbuchMap<T> implements Map<String, T> {
 	public Set<String> keySet() {
 		try {
 			final var keys = this.wbClient.ls(this.rootKey).get();
-			return keys.stream().map(this::unescape).collect(Collectors.toSet());
+			return keys.stream().map(Utils::unescape).collect(Collectors.toSet());
 		} catch (final InterruptedException e) {
 			Thread.currentThread().interrupt();
 			return Collections.emptySet();
@@ -176,7 +176,7 @@ public class WorterbuchMap<T> implements Map<String, T> {
 
 			@Override
 			public String getKey() {
-				return WorterbuchMap.this.unescape(kvp.getKey());
+				return Utils.unescape(kvp.getKey());
 			}
 
 			@Override
@@ -189,14 +189,6 @@ public class WorterbuchMap<T> implements Map<String, T> {
 				return WorterbuchMap.this.put(kvp.getKey(), value);
 			}
 		};
-	}
-
-	private String escape(final String string) {
-		return string.replace("/", "%2F");
-	}
-
-	private String unescape(final String string) {
-		return string.replace("%2F", "/");
 	}
 
 }

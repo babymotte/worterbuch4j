@@ -47,7 +47,7 @@ public class WorterbuchBiMap implements BiMap<String, String> {
 
 	@Override
 	public boolean containsKey(final Object key) {
-		final var escapedKey = this.escape(key.toString());
+		final var escapedKey = Utils.escape(key.toString());
 		try {
 			final var keys = this.wbClient.ls(this.rootKey).get();
 			return keys.contains(escapedKey);
@@ -61,7 +61,7 @@ public class WorterbuchBiMap implements BiMap<String, String> {
 
 	@Override
 	public boolean containsValue(final Object value) {
-		final var escapedValue = this.escape(value.toString());
+		final var escapedValue = Utils.escape(value.toString());
 		try {
 			final var kvps = this.wbClient.pGet(this.rootKey + "/#", String.class).get();
 			return kvps.stream().anyMatch(e -> Objects.equals(e.getValue(), escapedValue));
@@ -75,11 +75,11 @@ public class WorterbuchBiMap implements BiMap<String, String> {
 
 	@Override
 	public String get(final Object key) {
-		final var escapedKey = this.escape(key.toString());
+		final var escapedKey = Utils.escape(key.toString());
 		final var fullKey = this.rootKey + "/" + escapedKey;
 		try {
 			final var state = this.wbClient.get(fullKey, String.class).get();
-			return state.map(this::unescape).orElse(null);
+			return state.map(Utils::unescape).orElse(null);
 		} catch (final InterruptedException e) {
 			Thread.currentThread().interrupt();
 			return null;
@@ -90,9 +90,9 @@ public class WorterbuchBiMap implements BiMap<String, String> {
 
 	@Override
 	public String put(final String key, final String value) {
-		final var escapedKey = this.escape(key.toString());
+		final var escapedKey = Utils.escape(key.toString());
 		final var fullKey = this.rootKey + "/" + escapedKey;
-		final var escapedValue = this.escape(value.toString());
+		final var escapedValue = Utils.escape(value.toString());
 		try {
 			final var state = this.wbClient.get(fullKey, String.class).get();
 			final var currentValue = state.orElse(null);
@@ -108,11 +108,11 @@ public class WorterbuchBiMap implements BiMap<String, String> {
 
 	@Override
 	public String remove(final Object key) {
-		final var escapedKey = this.escape(key.toString());
+		final var escapedKey = Utils.escape(key.toString());
 		final var fullKey = this.rootKey + "/" + escapedKey;
 		try {
 			final var state = this.wbClient.delete(fullKey, String.class).get();
-			return state.map(this::unescape).orElse(null);
+			return state.map(Utils::unescape).orElse(null);
 		} catch (final InterruptedException e) {
 			Thread.currentThread().interrupt();
 			return null;
@@ -135,7 +135,7 @@ public class WorterbuchBiMap implements BiMap<String, String> {
 	public Set<String> keySet() {
 		try {
 			final var keys = this.wbClient.ls(this.rootKey).get();
-			return keys.stream().map(this::unescape).collect(Collectors.toSet());
+			return keys.stream().map(Utils::unescape).collect(Collectors.toSet());
 		} catch (final InterruptedException e) {
 			Thread.currentThread().interrupt();
 			return Collections.emptySet();
@@ -149,7 +149,7 @@ public class WorterbuchBiMap implements BiMap<String, String> {
 		final Set<String> values = new HashSet<>();
 		try {
 			final var kvps = this.wbClient.pGet(this.rootKey + "/#", String.class).get();
-			kvps.forEach(kvp -> values.add(this.unescape(kvp.getValue())));
+			kvps.forEach(kvp -> values.add(Utils.unescape(kvp.getValue())));
 		} catch (final InterruptedException e) {
 			Thread.currentThread().interrupt();
 		} catch (final ExecutionException e) {
@@ -186,12 +186,12 @@ public class WorterbuchBiMap implements BiMap<String, String> {
 
 			@Override
 			public String getKey() {
-				return WorterbuchBiMap.this.unescape(kvp.getKey());
+				return Utils.unescape(kvp.getKey());
 			}
 
 			@Override
 			public String getValue() {
-				return WorterbuchBiMap.this.unescape(kvp.getValue());
+				return Utils.unescape(kvp.getValue());
 			}
 
 			@Override
@@ -199,14 +199,6 @@ public class WorterbuchBiMap implements BiMap<String, String> {
 				return WorterbuchBiMap.this.put(kvp.getKey(), value);
 			}
 		};
-	}
-
-	private String escape(final String string) {
-		return string.replace("/", "%2F");
-	}
-
-	private String unescape(final String string) {
-		return string.replace("%2F", "/");
 	}
 
 	class InvertedWorterbuchBiMap implements BiMap<String, String> {
@@ -321,12 +313,12 @@ public class WorterbuchBiMap implements BiMap<String, String> {
 
 				@Override
 				public String getKey() {
-					return WorterbuchBiMap.this.unescape(kvp.getValue());
+					return Utils.unescape(kvp.getValue());
 				}
 
 				@Override
 				public String getValue() {
-					return WorterbuchBiMap.this.unescape(kvp.getKey());
+					return Utils.unescape(kvp.getKey());
 				}
 
 				@Override
