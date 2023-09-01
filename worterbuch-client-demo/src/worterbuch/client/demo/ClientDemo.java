@@ -4,6 +4,7 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.Arrays;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeoutException;
 
 import org.osgi.framework.BundleContext;
 import org.osgi.framework.BundleException;
@@ -15,25 +16,84 @@ import org.slf4j.LoggerFactory;
 import net.bbmsoft.worterbuch.client.KeyValuePair;
 import net.bbmsoft.worterbuch.client.WorterbuchClient;
 import net.bbmsoft.worterbuch.client.WorterbuchException;
+import net.bbmsoft.worterbuch.client.collections.AsyncWorterbuchList;
 
 @Component
 public class ClientDemo {
 
 	private final Logger log = LoggerFactory.getLogger(this.getClass());
-	private BundleContext ctx;
+	private volatile BundleContext ctx;
+
+	static class HelloWorld {
+		public String greeting;
+		public String gretee;
+
+		public HelloWorld() {
+		}
+
+		public HelloWorld(final String greeting, final String gretee) {
+			this.greeting = greeting;
+			this.gretee = gretee;
+		}
+
+		@Override
+		public String toString() {
+			return this.greeting + ", " + this.gretee + "!";
+		}
+	}
 
 	@Activate
 	public void activate(final BundleContext ctx)
-			throws URISyntaxException, WorterbuchException, InterruptedException, ExecutionException {
+			throws URISyntaxException, WorterbuchException, InterruptedException, ExecutionException, TimeoutException {
 		this.ctx = ctx;
+
+		new Thread(() -> {
+			try {
+				this.run();
+			} catch (ExecutionException | InterruptedException | URISyntaxException | TimeoutException e) {
+				this.error(e);
+			}
+		}).start();
+
+	}
+
+	private void run() throws ExecutionException, InterruptedException, URISyntaxException, TimeoutException {
 
 		final var uri = new URI("ws://worterbuch.local/ws");
 
 		final var wb = WorterbuchClient.connect(uri, Arrays.asList("clientDemo/#"),
 				Arrays.asList(KeyValuePair.of("clientDemo/lastWill", "nein")), this::exit, this::error);
 
-		wb.pSubscribe("#", true, Object.class, System.err::println, this::error);
+		final var list = new AsyncWorterbuchList<>(wb, "testapp", "collections", "asyncList", HelloWorld.class,
+				this::error);
 
+		var counter = list.size() - 1;
+		var inverted = counter >= 2;
+		while (true) {
+
+			if (counter < 0) {
+				counter = 0;
+				inverted = false;
+			}
+
+			if (inverted) {
+				list.remove(counter);
+			} else {
+				switch (list.size()) {
+				case 0 -> list.add(new HelloWorld("Hello", "World"));
+				case 1 -> list.add(new HelloWorld("Hello", "There"));
+				case 2 -> list.add(new HelloWorld("General", "Kenobi"));
+				}
+			}
+
+			counter = list.size() - 1;
+
+			if (counter >= 2) {
+				inverted = true;
+			}
+
+			Thread.sleep(1000);
+		}
 	}
 
 	private void exit(final Integer errorCode, final String message) {

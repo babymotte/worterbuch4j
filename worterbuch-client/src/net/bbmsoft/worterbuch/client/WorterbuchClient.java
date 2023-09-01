@@ -241,6 +241,10 @@ public class WorterbuchClient implements AutoCloseable {
 		return tid;
 	}
 
+	public long delete(final String key, final Consumer<WorterbuchException> onError) {
+		return this.delete(key, null, null, onError);
+	}
+
 	public <T> Future<List<KeyValuePair<T>>> pDelete(final String pattern, final Class<T> type) {
 		final var fut = new CompletableFuture<List<KeyValuePair<T>>>();
 		this.<T>pDelete(pattern, type, val -> fut.complete(val), e -> fut.completeExceptionally(e));
@@ -252,6 +256,10 @@ public class WorterbuchClient implements AutoCloseable {
 		final var tid = this.transactionId.incrementAndGet();
 		this.exec.execute(() -> this.doPDelete(tid, pattern, type, callback, onError));
 		return tid;
+	}
+
+	public long pDelete(final String pattern, final Consumer<WorterbuchException> onError) {
+		return this.pDelete(pattern, null, null, onError);
 	}
 
 	public Future<List<String>> ls(final String parent) {

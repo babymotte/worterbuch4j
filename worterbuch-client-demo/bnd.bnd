@@ -5,7 +5,7 @@ Bundle-Version: 1.0.0.${tstamp}
 	osgi.annotation;version='7.0.0',\
 	osgi.cmpn;version='7.0.0',\
 	osgi.core,\
-	worterbuch-client,\
+	worterbuch-client;version=latest,\
 	slf4j.api,\
 	org.eclipse.jetty.websocket.api,\
 	org.eclipse.jetty.websocket.client,\
