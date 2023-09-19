@@ -36,6 +36,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.type.TypeFactory;
 
+import net.bbmsoft.worterbuch.client.impl.Config;
 import net.bbmsoft.worterbuch.client.impl.WrappingExecutor;
 import net.bbmsoft.worterbuch.client.model.ClientMessage;
 import net.bbmsoft.worterbuch.client.model.Delete;
@@ -64,6 +65,8 @@ import net.bbmsoft.worterbuch.client.pending.PendingPGet;
 import net.bbmsoft.worterbuch.client.pending.Subscription;
 
 public class WorterbuchClient implements AutoCloseable {
+
+	private static int KEEPALIVE_TIMEOUT = Config.getIntValue("WORTERBUCH_KEEPALIVE_TIMEOUT", 5000);
 
 	public static WorterbuchClient connect(final URI uri, final List<String> graveGoods,
 			final List<KeyValuePair<?>> lastWill, final BiConsumer<Integer, String> onDisconnect,
@@ -862,7 +865,7 @@ public class WorterbuchClient implements AutoCloseable {
 		if (lag >= 2000) {
 			this.log.warn("Server has been inactive for {} seconds …", lag / 1000);
 		}
-		if (lag >= 5000) {
+		if (lag >= WorterbuchClient.KEEPALIVE_TIMEOUT) {
 			this.log.warn("Server has been inactive for too long, disconnecting.");
 			this.close();
 		}
