@@ -66,7 +66,8 @@ import net.bbmsoft.worterbuch.client.pending.Subscription;
 
 public class WorterbuchClient implements AutoCloseable {
 
-	private static int KEEPALIVE_TIMEOUT = Config.getIntValue("WORTERBUCH_KEEPALIVE_TIMEOUT", 5000);
+	private static int KEEPALIVE_TIMEOUT = Config.getIntValue("WORTERBUCH_KEEPALIVE_TIMEOUT", 5) * 1_000;
+	private static int CONNECT_TIMEOUT = Config.getIntValue("WORTERBUCH_CONNECT_TIMEOUT", 5);
 
 	public static WorterbuchClient connect(final URI uri, final List<String> graveGoods,
 			final List<KeyValuePair<?>> lastWill, final BiConsumer<Integer, String> onDisconnect,
@@ -93,7 +94,7 @@ public class WorterbuchClient implements AutoCloseable {
 		exec.execute(() -> WorterbuchClient.initWorterbuchClient(uri, graveGoods, lastWill, onDisconnect, onError, exec,
 				queue, Objects.requireNonNull(callbackExecutor)));
 
-		final var wb = queue.poll(5, TimeUnit.SECONDS);
+		final var wb = queue.poll(WorterbuchClient.CONNECT_TIMEOUT, TimeUnit.SECONDS);
 		if (wb == null) {
 			throw new TimeoutException();
 		}
@@ -134,7 +135,7 @@ public class WorterbuchClient implements AutoCloseable {
 		wb.connect(socket, uri);
 
 		try {
-			queue.offer(wb, 5, TimeUnit.SECONDS);
+			queue.offer(wb, WorterbuchClient.CONNECT_TIMEOUT, TimeUnit.SECONDS);
 		} catch (final InterruptedException e) {
 			onError.accept(new WorterbuchException("Client thread interrupted while offreing wortebruch client", e));
 		}
@@ -841,7 +842,7 @@ public class WorterbuchClient implements AutoCloseable {
 		}
 
 		try {
-			this.session = this.client.connect(socket, uri).get(5, TimeUnit.SECONDS);
+			this.session = this.client.connect(socket, uri).get(WorterbuchClient.CONNECT_TIMEOUT, TimeUnit.SECONDS);
 			this.session.getPolicy().setMaxTextMessageSize(1024 * 1024 * 1024);
 		} catch (final ExecutionException | IOException e) {
 			this.onError.accept(new WorterbuchException("Failed to connect to server", e));
