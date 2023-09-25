@@ -14,7 +14,7 @@ import com.fasterxml.jackson.annotation.JsonPropertyOrder;
  *
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
-@JsonPropertyOrder({ "transactionId", "requestPattern", "unique" })
+@JsonPropertyOrder({ "transactionId", "requestPattern", "unique", "aggregateEvents" })
 @Generated("jsonschema2pojo")
 public class PSubscribe {
 
@@ -39,6 +39,14 @@ public class PSubscribe {
 	@JsonProperty("unique")
 	@JsonPropertyDescription("Indicate whether all or only unique values should be received")
 	private Boolean unique;
+	/**
+	 * Optionally aggregate events for the given number of milliseconds before
+	 * sending them to the client to reduce network traffic
+	 * 
+	 */
+	@JsonProperty("aggregateEvents")
+	@JsonPropertyDescription("Optionally aggregate events for the given number of milliseconds before sending them to the client to reduce network traffic")
+	private Long aggregateEvents;
 
 	/**
 	 * A unique transaction ID (Required)
@@ -94,6 +102,26 @@ public class PSubscribe {
 		this.unique = unique;
 	}
 
+	/**
+	 * Optionally aggregate events for the given number of milliseconds before
+	 * sending them to the client to reduce network traffic
+	 * 
+	 */
+	@JsonProperty("aggregateEvents")
+	public Long getAggregateEvents() {
+		return this.aggregateEvents;
+	}
+
+	/**
+	 * Optionally aggregate events for the given number of milliseconds before
+	 * sending them to the client to reduce network traffic
+	 * 
+	 */
+	@JsonProperty("aggregateEvents")
+	public void setAggregateEvents(final Long aggregateEvents) {
+		this.aggregateEvents = aggregateEvents;
+	}
+
 	@Override
 	public String toString() {
 		final var sb = new StringBuilder();
@@ -111,6 +139,10 @@ public class PSubscribe {
 		sb.append('=');
 		sb.append(((this.unique == null) ? "<null>" : this.unique));
 		sb.append(',');
+		sb.append("aggregateEvents");
+		sb.append('=');
+		sb.append(((this.aggregateEvents == null) ? "<null>" : this.aggregateEvents));
+		sb.append(',');
 		if (sb.charAt((sb.length() - 1)) == ',') {
 			sb.setCharAt((sb.length() - 1), ']');
 		} else {
@@ -122,6 +154,7 @@ public class PSubscribe {
 	@Override
 	public int hashCode() {
 		var result = 1;
+		result = ((result * 31) + ((this.aggregateEvents == null) ? 0 : this.aggregateEvents.hashCode()));
 		result = ((result * 31) + ((this.transactionId == null) ? 0 : this.transactionId.hashCode()));
 		result = ((result * 31) + ((this.requestPattern == null) ? 0 : this.requestPattern.hashCode()));
 		result = ((result * 31) + ((this.unique == null) ? 0 : this.unique.hashCode()));
@@ -137,8 +170,10 @@ public class PSubscribe {
 			return false;
 		}
 		final var rhs = ((PSubscribe) other);
-		return ((((this.transactionId == rhs.transactionId)
-				|| ((this.transactionId != null) && this.transactionId.equals(rhs.transactionId)))
+		return (((((this.aggregateEvents == rhs.aggregateEvents)
+				|| ((this.aggregateEvents != null) && this.aggregateEvents.equals(rhs.aggregateEvents)))
+				&& ((this.transactionId == rhs.transactionId)
+						|| ((this.transactionId != null) && this.transactionId.equals(rhs.transactionId))))
 				&& ((this.requestPattern == rhs.requestPattern)
 						|| ((this.requestPattern != null) && this.requestPattern.equals(rhs.requestPattern))))
 				&& ((this.unique == rhs.unique) || ((this.unique != null) && this.unique.equals(rhs.unique))));

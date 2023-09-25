@@ -19,4 +19,4 @@
 Export-Package: \
 	net.bbmsoft.worterbuch.client,\
 	net.bbmsoft.worterbuch.client.collections
-Bundle-Version: 0.39.3
+Bundle-Version: 1.0.1

@@ -294,10 +294,10 @@ public class WorterbuchClient implements AutoCloseable {
 		return tid;
 	}
 
-	public <T> long pSubscribe(final String pattern, final boolean unique, final Class<T> type,
-			final Consumer<PStateEvent<T>> callback, final Consumer<WorterbuchException> onError) {
+	public <T> long pSubscribe(final String pattern, final boolean unique, final Optional<Long> aggregateEvents,
+			final Class<T> type, final Consumer<PStateEvent<T>> callback, final Consumer<WorterbuchException> onError) {
 		final var tid = this.transactionId.incrementAndGet();
-		this.exec.execute(() -> this.doPSubscribe(tid, pattern, unique, type, callback, onError));
+		this.exec.execute(() -> this.doPSubscribe(tid, pattern, unique, aggregateEvents, type, callback, onError));
 		return tid;
 	}
 
@@ -431,8 +431,9 @@ public class WorterbuchClient implements AutoCloseable {
 		this.sendWsMessage(msg, onError);
 	}
 
-	private <T> void doPSubscribe(final long tid, final String pattern, final boolean unique, final Class<T> type,
-			final Consumer<PStateEvent<T>> callback, final Consumer<WorterbuchException> onError) {
+	private <T> void doPSubscribe(final long tid, final String pattern, final boolean unique,
+			final Optional<Long> aggregateEvents, final Class<T> type, final Consumer<PStateEvent<T>> callback,
+			final Consumer<WorterbuchException> onError) {
 
 		this.pSubscriptions.put(tid, new PSubscription<>(callback, type));
 
@@ -440,6 +441,7 @@ public class WorterbuchClient implements AutoCloseable {
 		psub.setTransactionId(tid);
 		psub.setRequestPattern(pattern);
 		psub.setUnique(unique);
+		aggregateEvents.ifPresent(psub::setAggregateEvents);
 		final var msg = new ClientMessage();
 		msg.setpSubscribe(psub);
 
