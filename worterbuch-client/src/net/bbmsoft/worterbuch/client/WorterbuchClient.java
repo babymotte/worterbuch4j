@@ -121,6 +121,12 @@ public class WorterbuchClient implements AutoCloseable {
 			final SynchronousQueue<WorterbuchClient> queue, final Executor callbackExecutor) {
 
 		final var client = new WebSocketClient();
+		try {
+			client.start();
+		} catch (final Exception e) {
+			onError.accept(new WorterbuchException("Could not start WS client", e));
+			return;
+		}
 
 		final var clientSocket = new WsClientSocket(client, uri, onError);
 
