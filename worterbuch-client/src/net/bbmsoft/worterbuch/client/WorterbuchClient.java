@@ -3,6 +3,7 @@ package net.bbmsoft.worterbuch.client;
 import java.io.IOException;
 import java.lang.reflect.GenericArrayType;
 import java.lang.reflect.Type;
+import java.net.Socket;
 import java.net.URI;
 import java.util.Arrays;
 import java.util.Collections;
@@ -12,7 +13,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
@@ -37,7 +37,9 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.type.TypeFactory;
 
 import net.bbmsoft.worterbuch.client.impl.Config;
+import net.bbmsoft.worterbuch.client.impl.TcpClientSocket;
 import net.bbmsoft.worterbuch.client.impl.WrappingExecutor;
+import net.bbmsoft.worterbuch.client.impl.WsClientSocket;
 import net.bbmsoft.worterbuch.client.model.ClientMessage;
 import net.bbmsoft.worterbuch.client.model.Delete;
 import net.bbmsoft.worterbuch.client.model.Err;
@@ -66,9 +68,6 @@ import net.bbmsoft.worterbuch.client.pending.Subscription;
 
 public class WorterbuchClient implements AutoCloseable {
 
-	private static int KEEPALIVE_TIMEOUT = Config.getIntValue("WORTERBUCH_KEEPALIVE_TIMEOUT", 5) * 1_000;
-	private static int CONNECT_TIMEOUT = Config.getIntValue("WORTERBUCH_CONNECT_TIMEOUT", 5);
-
 	public static WorterbuchClient connect(final URI uri, final List<String> graveGoods,
 			final List<KeyValuePair<?>> lastWill, final BiConsumer<Integer, String> onDisconnect,
 			final Consumer<Throwable> onError) throws InterruptedException, TimeoutException {
@@ -94,7 +93,7 @@ public class WorterbuchClient implements AutoCloseable {
 		exec.execute(() -> WorterbuchClient.initWorterbuchClient(uri, graveGoods, lastWill, onDisconnect, onError, exec,
 				queue, Objects.requireNonNull(callbackExecutor)));
 
-		final var wb = queue.poll(WorterbuchClient.CONNECT_TIMEOUT, TimeUnit.SECONDS);
+		final var wb = queue.poll(Config.CONNECT_TIMEOUT, TimeUnit.SECONDS);
 		if (wb == null) {
 			throw new TimeoutException();
 		}
@@ -106,9 +105,26 @@ public class WorterbuchClient implements AutoCloseable {
 			final Consumer<Throwable> onError, final ScheduledExecutorService exec,
 			final SynchronousQueue<WorterbuchClient> queue, final Executor callbackExecutor) {
 
+		if (uri.getScheme().equals("tcp")) {
+			WorterbuchClient.initTcpWorterbuchClient(uri, graveGoods, lastWill, onDisconnect, onError, exec, queue,
+					callbackExecutor);
+		} else {
+			WorterbuchClient.initWsWorterbuchClient(uri, graveGoods, lastWill, onDisconnect, onError, exec, queue,
+					callbackExecutor);
+		}
+
+	}
+
+	private static void initWsWorterbuchClient(final URI uri, final List<String> graveGoods,
+			final List<KeyValuePair<?>> lastWill, final BiConsumer<Integer, String> onDisconnect,
+			final Consumer<Throwable> onError, final ScheduledExecutorService exec,
+			final SynchronousQueue<WorterbuchClient> queue, final Executor callbackExecutor) {
+
 		final var client = new WebSocketClient();
 
-		final var wb = new WorterbuchClient(exec, onDisconnect, onError, client);
+		final var clientSocket = new WsClientSocket(client, uri, onError);
+
+		final var wb = new WorterbuchClient(exec, onDisconnect, onError, clientSocket);
 
 		final var socket = new WebSocketAdapter() {
 			@Override
@@ -132,10 +148,42 @@ public class WorterbuchClient implements AutoCloseable {
 			}
 		};
 
-		wb.connect(socket, uri);
+		try {
+			clientSocket.open(socket);
+		} catch (final Exception e) {
+			onError.accept(new WorterbuchException("Could not start client.", e));
+		}
 
 		try {
-			queue.offer(wb, WorterbuchClient.CONNECT_TIMEOUT, TimeUnit.SECONDS);
+			queue.offer(wb, Config.CONNECT_TIMEOUT, TimeUnit.SECONDS);
+		} catch (final InterruptedException e) {
+			onError.accept(new WorterbuchException("Client thread interrupted while offreing wortebruch client", e));
+		}
+	}
+
+	private static void initTcpWorterbuchClient(final URI uri, final List<String> graveGoods,
+			final List<KeyValuePair<?>> lastWill, final BiConsumer<Integer, String> onDisconnect,
+			final Consumer<Throwable> onError, final ScheduledExecutorService exec,
+			final SynchronousQueue<WorterbuchClient> queue, final Executor callbackExecutor) {
+
+		WorterbuchClient wb;
+
+		try {
+			final var socket = new Socket(uri.getHost(), uri.getPort());
+
+			final var clientSocket = new TcpClientSocket(socket);
+
+			wb = new WorterbuchClient(exec, onDisconnect, onError, clientSocket);
+
+			clientSocket.open(msg -> wb.messageReceived(msg, callbackExecutor));
+
+		} catch (final IOException e) {
+			onError.accept(new WorterbuchException("Could not start client.", e));
+			return;
+		}
+
+		try {
+			queue.offer(wb, Config.CONNECT_TIMEOUT, TimeUnit.SECONDS);
 		} catch (final InterruptedException e) {
 			onError.accept(new WorterbuchException("Client thread interrupted while offreing wortebruch client", e));
 		}
@@ -145,7 +193,7 @@ public class WorterbuchClient implements AutoCloseable {
 	private final ScheduledExecutorService exec;
 	private final BiConsumer<Integer, String> onDisconnect;
 	private final Consumer<Throwable> onError;
-	private final WebSocketClient client;
+	private final ClientSocket client;
 
 	private final Logger log = LoggerFactory.getLogger(WorterbuchClient.class);
 	private final AtomicLong transactionId = new AtomicLong();
@@ -160,8 +208,6 @@ public class WorterbuchClient implements AutoCloseable {
 	private final Map<Long, PSubscription<?>> pSubscriptions = new HashMap<>();
 	private final Map<Long, LsSubscription> lsSubscriptions = new HashMap<>();
 
-	private Session session;
-
 	private long lastKeepaliveSent = System.currentTimeMillis();
 	private long lastKeepaliveReceived = System.currentTimeMillis();
 
@@ -169,7 +215,7 @@ public class WorterbuchClient implements AutoCloseable {
 	private boolean disconnected;
 
 	public WorterbuchClient(final ScheduledExecutorService exec, final BiConsumer<Integer, String> onDisconnect,
-			final Consumer<Throwable> onError, final WebSocketClient client) {
+			final Consumer<Throwable> onError, final ClientSocket client) {
 		this.exec = exec;
 		this.onDisconnect = onDisconnect;
 		this.onError = onError;
@@ -491,7 +537,7 @@ public class WorterbuchClient implements AutoCloseable {
 
 		try {
 			final var json = msg != null ? this.objectMapper.writeValueAsString(msg) : "\"\"";
-			this.session.getRemote().sendString(json);
+			this.client.sendString(json);
 			this.lastKeepaliveSent = System.currentTimeMillis();
 		} catch (final JsonProcessingException e) {
 			onError.accept(new WorterbuchException("Could not serialize message", e));
@@ -834,28 +880,6 @@ public class WorterbuchClient implements AutoCloseable {
 		}
 	}
 
-	private void connect(final WebSocketAdapter socket, final URI uri) {
-		this.log.info("Connecting to Worterbuch server at {}", uri);
-
-		try {
-			this.client.start();
-		} catch (final Exception e) {
-			this.onError.accept(new WorterbuchException("Could not start client.", e));
-		}
-
-		try {
-			this.session = this.client.connect(socket, uri).get(WorterbuchClient.CONNECT_TIMEOUT, TimeUnit.SECONDS);
-			this.session.getPolicy().setMaxTextMessageSize(1024 * 1024 * 1024);
-		} catch (final ExecutionException | IOException e) {
-			this.onError.accept(new WorterbuchException("Failed to connect to server", e));
-		} catch (final TimeoutException e) {
-			this.onError.accept(new WorterbuchException("Connection to server timed out", e));
-		} catch (final InterruptedException e) {
-			this.onError.accept(new WorterbuchException("Client thread interrupted while establishing connection", e));
-		}
-
-	}
-
 	private void checkKeepalive() {
 		final var now = System.currentTimeMillis();
 
@@ -868,7 +892,7 @@ public class WorterbuchClient implements AutoCloseable {
 		if (lag >= 2000) {
 			this.log.warn("Server has been inactive for {} seconds …", lag / 1000);
 		}
-		if (lag >= WorterbuchClient.KEEPALIVE_TIMEOUT) {
+		if (lag >= Config.KEEPALIVE_TIMEOUT) {
 			this.log.warn("Server has been inactive for too long, disconnecting.");
 			this.close();
 		}
@@ -878,8 +902,7 @@ public class WorterbuchClient implements AutoCloseable {
 		this.closing = true;
 		this.log.info("Closing worterbuch client.");
 		try {
-			this.session.close();
-			this.client.stop();
+			this.client.close();
 		} catch (final Exception e) {
 			this.onError.accept(new WorterbuchException("Error closing worterbuch client", e));
 		}

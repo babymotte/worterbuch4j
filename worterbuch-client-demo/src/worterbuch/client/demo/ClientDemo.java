@@ -59,10 +59,12 @@ public class ClientDemo {
 
 	private void run() throws ExecutionException, InterruptedException, URISyntaxException, TimeoutException {
 
-		final var uri = new URI("ws://worterbuch.local/ws");
+		final var uri = new URI("tcp://localhost:8081");
 
 		final var wb = WorterbuchClient.connect(uri, Arrays.asList("clientDemo/#"),
 				Arrays.asList(KeyValuePair.of("clientDemo/lastWill", "nein")), this::exit, this::error);
+
+		wb.subscribe("hello", true, String.class, System.err::println, System.err::println);
 
 		final var list = new AsyncWorterbuchList<>(wb, "testapp", "collections", "asyncList", HelloWorld.class,
 				this::error);
