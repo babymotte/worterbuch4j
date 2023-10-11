@@ -6,6 +6,7 @@ import java.io.PrintStream;
 import java.net.Socket;
 import java.nio.charset.StandardCharsets;
 import java.util.Scanner;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
 import net.bbmsoft.worterbuch.client.ClientSocket;
@@ -16,9 +17,14 @@ public class TcpClientSocket implements ClientSocket {
 	private final PrintStream outs;
 	private final InputStream ins;
 	private Thread receiveThread;
+	private final BiConsumer<Integer, String> onDisconnect;
+	private final Consumer<Throwable> onError;
 
-	public TcpClientSocket(final Socket socket) throws IOException {
+	public TcpClientSocket(final Socket socket, final BiConsumer<Integer, String> onDisconnect,
+			final Consumer<Throwable> onError) throws IOException {
 		this.socket = socket;
+		this.onDisconnect = onDisconnect;
+		this.onError = onError;
 		this.outs = new PrintStream(socket.getOutputStream(), true, StandardCharsets.UTF_8);
 		this.ins = socket.getInputStream();
 	}
@@ -61,6 +67,10 @@ public class TcpClientSocket implements ClientSocket {
 				final var line = sc.nextLine();
 				messageConsumer.accept(line);
 			}
+		} catch (final Exception e) {
+			this.onError.accept(e);
+		} finally {
+			this.onDisconnect.accept(1, "Receive loop closed.");
 		}
 
 	}

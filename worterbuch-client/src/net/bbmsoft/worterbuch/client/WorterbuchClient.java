@@ -171,7 +171,7 @@ public class WorterbuchClient implements AutoCloseable {
 		try {
 			final var socket = new Socket(uri.getHost(), uri.getPort());
 
-			final var clientSocket = new TcpClientSocket(socket);
+			final var clientSocket = new TcpClientSocket(socket, onDisconnect, onError);
 
 			wb = new WorterbuchClient(exec, onDisconnect, onError, clientSocket);
 
