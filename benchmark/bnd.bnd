@@ -1,0 +1,17 @@
+Bundle-Version: 1.0.0.${tstamp}
+
+-baseline: *
+-buildpath: \
+	osgi.annotation;version='7.0.0',\
+	osgi.cmpn;version='7.0.0',\
+	osgi.core;version='7.0.0',\
+	worterbuch-client;version=latest,\
+	slf4j.api,\
+	org.eclipse.jetty.websocket.api,\
+	org.eclipse.jetty.websocket.client,\
+	org.eclipse.jetty.websocket.common,\
+	com.fasterxml.jackson.core.jackson-core,\
+	com.fasterxml.jackson.core.jackson-databind
+
+-includeresource: resources
+-privatepackage: benchmark
