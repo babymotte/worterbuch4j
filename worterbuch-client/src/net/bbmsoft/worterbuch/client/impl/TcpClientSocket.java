@@ -1,11 +1,12 @@
 package net.bbmsoft.worterbuch.client.impl;
 
+import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.io.PrintStream;
 import java.net.Socket;
 import java.nio.charset.StandardCharsets;
-import java.util.Scanner;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
@@ -62,9 +63,8 @@ public class TcpClientSocket implements ClientSocket {
 
 	private void receiveLoop(final Consumer<String> messageConsumer) {
 
-		try (var sc = new Scanner(this.ins)) {
-			while (sc.hasNextLine()) {
-				final var line = sc.nextLine();
+		try (var reader = new BufferedReader(new InputStreamReader(this.ins, StandardCharsets.UTF_8));) {
+			for (var line = reader.readLine(); line != null; line = reader.readLine()) {
 				messageConsumer.accept(line);
 			}
 		} catch (final Exception e) {

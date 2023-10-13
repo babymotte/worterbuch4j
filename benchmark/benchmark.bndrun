@@ -7,6 +7,8 @@
 -runproperties: \
 	osgi.console=,\
 	osgi.console.enable.builtin=false
+	
+-runvm: -Dlogback.configurationFile=resources/logback.xml
 
 -runrequires: \
 	osgi.identity;filter:='(osgi.identity=org.apache.felix.gogo.shell)',\

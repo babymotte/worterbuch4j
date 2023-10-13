@@ -40,6 +40,7 @@ public class Benchmark {
 
 		this.ctx = ctx;
 
+//		final var uri = new URI("ws://localhost:8080/ws");
 		final var uri = new URI("tcp://localhost:8081");
 
 		for (var i = 0; i < Benchmark.CLIENTS; i++) {
