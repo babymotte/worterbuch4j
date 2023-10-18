@@ -5,8 +5,8 @@ import java.util.Optional;
 
 public class Config {
 
-	public static int KEEPALIVE_TIMEOUT = Config.getIntValue("WORTERBUCH_KEEPALIVE_TIMEOUT", 5) * 1_000;
-	public static int CONNECT_TIMEOUT = Config.getIntValue("WORTERBUCH_CONNECT_TIMEOUT", 5);
+	public static final int KEEPALIVE_TIMEOUT = Config.getIntValue("WORTERBUCH_KEEPALIVE_TIMEOUT", 5) * 1_000;
+	public static final int CONNECT_TIMEOUT = Config.getIntValue("WORTERBUCH_CONNECT_TIMEOUT", 5);
 
 	public static int getIntValue(final String key, final int defaultValue) {
 		final var stringValue = Config.getValue(key);

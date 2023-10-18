@@ -885,7 +885,7 @@ public class WorterbuchClient implements AutoCloseable {
 					final var event = new PStateEvent<>(null, kvps);
 					callbackExecutor.execute(() -> pSubscription.callback.accept(event));
 				} catch (final JsonProcessingException e) {
-					this.log.error("Could not deserialize JSON '{}': {}", kvpsContainer, e.getMessage());
+					this.log.error("Could not deserialize JSON '{}': {}", deletedContainer, e.getMessage());
 					callbackExecutor.execute(() -> pSubscription.callback.accept(new PStateEvent<>(null, null)));
 				}
 			}

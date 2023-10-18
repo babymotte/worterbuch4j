@@ -23,11 +23,11 @@ subprojects {
       }
     }
 
-    // if (
-    // 	it.name != 'cnf'
-    // ) {
-    //   apply plugin: 'com.github.spotbugs'
-    // }
+    if (
+    	it.name != 'cnf'
+    ) {
+      apply plugin: 'com.github.spotbugs'
+    }
 
     repositories {
       mavenCentral()
