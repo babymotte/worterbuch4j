@@ -84,7 +84,7 @@ public class ClientDemo {
 				switch (list.size()) {
 				case 0 -> list.add(new HelloWorld("Hello", "World"));
 				case 1 -> list.add(new HelloWorld("Hello", "There"));
-				case 2 -> list.add(new HelloWorld("General", "Kenobi"));
+				default -> list.add(new HelloWorld("General", "Kenobi"));
 				}
 			}
 
