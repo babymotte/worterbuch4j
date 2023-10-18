@@ -38,6 +38,7 @@ import com.fasterxml.jackson.databind.type.TypeFactory;
 
 import net.bbmsoft.worterbuch.client.impl.Config;
 import net.bbmsoft.worterbuch.client.impl.TcpClientSocket;
+import net.bbmsoft.worterbuch.client.impl.TypeConverter;
 import net.bbmsoft.worterbuch.client.impl.WrappingExecutor;
 import net.bbmsoft.worterbuch.client.impl.WsClientSocket;
 import net.bbmsoft.worterbuch.client.model.ClientMessage;
@@ -331,25 +332,28 @@ public class WorterbuchClient implements AutoCloseable {
 		return tid;
 	}
 
-	public <T> long subscribe(final String key, final boolean unique, final Class<T> type,
+	public <T> long subscribe(final String key, final boolean unique, final boolean liveOnly, final Class<T> type,
 			final Consumer<Optional<T>> callback, final Consumer<WorterbuchException> onError) {
 		final var tid = this.transactionId.incrementAndGet();
-		this.exec.execute(() -> this.doSubscribe(tid, key, unique, type, callback, onError));
+		this.exec.execute(() -> this.doSubscribe(tid, key, unique, liveOnly, type, callback, onError));
 		return tid;
 	}
 
-	public <T> long subscribeArray(final String key, final boolean unique, final Class<T> elementType,
-			final Consumer<Optional<T[]>> callback, final Consumer<WorterbuchException> onError) {
+	public <T> long subscribeArray(final String key, final boolean unique, final boolean liveOnly,
+			final Class<T> elementType, final Consumer<Optional<T[]>> callback,
+			final Consumer<WorterbuchException> onError) {
+		final var tid = this.transactionId.incrementAndGet();
+		this.exec.execute(() -> this.doSubscribe(tid, key, unique, liveOnly, (GenericArrayType) () -> elementType,
+				callback, onError));
+		return tid;
+	}
+
+	public <T> long pSubscribe(final String pattern, final boolean unique, final boolean liveOnly,
+			final Optional<Long> aggregateEvents, final Class<T> type, final Consumer<PStateEvent<T>> callback,
+			final Consumer<WorterbuchException> onError) {
 		final var tid = this.transactionId.incrementAndGet();
 		this.exec.execute(
-				() -> this.doSubscribe(tid, key, unique, (GenericArrayType) () -> elementType, callback, onError));
-		return tid;
-	}
-
-	public <T> long pSubscribe(final String pattern, final boolean unique, final Optional<Long> aggregateEvents,
-			final Class<T> type, final Consumer<PStateEvent<T>> callback, final Consumer<WorterbuchException> onError) {
-		final var tid = this.transactionId.incrementAndGet();
-		this.exec.execute(() -> this.doPSubscribe(tid, pattern, unique, aggregateEvents, type, callback, onError));
+				() -> this.doPSubscribe(tid, pattern, unique, liveOnly, aggregateEvents, type, callback, onError));
 		return tid;
 	}
 
@@ -468,8 +472,8 @@ public class WorterbuchClient implements AutoCloseable {
 		this.sendWsMessage(msg, onError);
 	}
 
-	private <T> void doSubscribe(final long tid, final String key, final boolean unique, final Type type,
-			final Consumer<Optional<T>> callback, final Consumer<WorterbuchException> onError) {
+	private <T> void doSubscribe(final long tid, final String key, final boolean unique, final boolean liveOnly,
+			final Type type, final Consumer<Optional<T>> callback, final Consumer<WorterbuchException> onError) {
 
 		this.subscriptions.put(tid, new Subscription<>(callback, type));
 
@@ -477,13 +481,14 @@ public class WorterbuchClient implements AutoCloseable {
 		sub.setTransactionId(tid);
 		sub.setKey(key);
 		sub.setUnique(unique);
+		sub.setLiveOnly(liveOnly);
 		final var msg = new ClientMessage();
 		msg.setSubscribe(sub);
 
 		this.sendWsMessage(msg, onError);
 	}
 
-	private <T> void doPSubscribe(final long tid, final String pattern, final boolean unique,
+	private <T> void doPSubscribe(final long tid, final String pattern, final boolean unique, final boolean liveOnly,
 			final Optional<Long> aggregateEvents, final Class<T> type, final Consumer<PStateEvent<T>> callback,
 			final Consumer<WorterbuchException> onError) {
 
@@ -493,6 +498,7 @@ public class WorterbuchClient implements AutoCloseable {
 		psub.setTransactionId(tid);
 		psub.setRequestPattern(pattern);
 		psub.setUnique(unique);
+		psub.setLiveOnly(liveOnly);
 		aggregateEvents.ifPresent(psub::setAggregateEvents);
 		final var msg = new ClientMessage();
 		msg.setpSubscribe(psub);
@@ -747,7 +753,7 @@ public class WorterbuchClient implements AutoCloseable {
 		protocolVersion.setMinor(6);
 		hs.setSupportedProtocolVersions(Arrays.asList(protocolVersion));
 		hs.setGraveGoods(graveGoods);
-		hs.setLastWill(lastWill);
+		hs.setLastWill(TypeConverter.convert(lastWill));
 		final var msg = new ClientMessage();
 		msg.setHandshakeRequest(hs);
 

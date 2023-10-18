@@ -63,7 +63,7 @@ public class Benchmark {
 		System.err.println("Done. Waiting for messages to be processed …");
 
 		this.wb.set("clientDemo/roundtrip", "hello", this::error);
-		this.wb.subscribe("clientDemo/roundtrip", false, Object.class, e -> {
+		this.wb.subscribe("clientDemo/roundtrip", false, false, Object.class, e -> {
 			if (e.isPresent()) {
 				System.err.println("Messages processed.");
 

@@ -1,3 +1,5 @@
+src = src, generated/model
+
 -buildpath: \
 	slf4j.api,\
 	org.eclipse.jetty.websocket.api,\

@@ -30,7 +30,7 @@ public class Subscriber extends Thread {
 
 			System.err.println("Subscribing to '" + topic + "'");
 
-			wb.pSubscribe(topic, false, Optional.of(1L), Object.class, e -> {
+			wb.pSubscribe(topic, false, false, Optional.of(1L), Object.class, e -> {
 			}, WorterbuchException::printStackTrace);
 
 		} catch (InterruptedException | TimeoutException e) {
