@@ -372,6 +372,10 @@ public class WorterbuchClient implements AutoCloseable {
 		this.exec.execute(() -> this.doUnsubscribeLs(transactionId, onError));
 	}
 
+	public ObjectMapper getObjectMapper() {
+		return this.objectMapper;
+	}
+
 	private <T> void doSet(final long tid, final String key, final T value,
 			final Consumer<WorterbuchException> onError) {
 
