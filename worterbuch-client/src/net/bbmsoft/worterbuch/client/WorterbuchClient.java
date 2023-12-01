@@ -184,6 +184,8 @@ public class WorterbuchClient implements AutoCloseable {
 
 			clientSocket.open(msg -> wb.messageReceived(msg, callbackExecutor));
 
+			wb.onConnect(graveGoods, lastWill);
+
 		} catch (final IOException e) {
 			onError.accept(new WorterbuchException("Could not start client.", e));
 			return;
