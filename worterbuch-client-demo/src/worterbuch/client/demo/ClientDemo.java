@@ -10,6 +10,7 @@ import org.osgi.framework.BundleContext;
 import org.osgi.framework.BundleException;
 import org.osgi.service.component.annotations.Activate;
 import org.osgi.service.component.annotations.Component;
+import org.osgi.service.component.annotations.Deactivate;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -23,6 +24,8 @@ public class ClientDemo {
 
 	private final Logger log = LoggerFactory.getLogger(this.getClass());
 	private volatile BundleContext ctx;
+	private volatile boolean running;
+	private volatile Thread thread;
 
 	static class HelloWorld {
 		public String greeting;
@@ -46,18 +49,26 @@ public class ClientDemo {
 	public void activate(final BundleContext ctx)
 			throws URISyntaxException, WorterbuchException, InterruptedException, ExecutionException, TimeoutException {
 		this.ctx = ctx;
+		this.running = true;
 
-		new Thread(() -> {
+		this.thread = new Thread(() -> {
 			try {
 				this.run();
 			} catch (ExecutionException | InterruptedException | URISyntaxException | TimeoutException e) {
 				this.error(e);
 			}
-		}).start();
+		});
+		this.thread.start();
 
 	}
 
-	private void run() throws ExecutionException, InterruptedException, URISyntaxException, TimeoutException {
+	@Deactivate
+	public void deactivate() {
+		this.running = false;
+		this.thread.interrupt();
+	}
+
+	private void run() throws ExecutionException, URISyntaxException, TimeoutException, InterruptedException {
 
 		final var uri = new URI("tcp://localhost:8081");
 
@@ -71,7 +82,7 @@ public class ClientDemo {
 
 		var counter = list.size() - 1;
 		var inverted = counter >= 2;
-		while (true) {
+		while (this.running) {
 
 			if (counter < 0) {
 				counter = 0;
@@ -94,8 +105,14 @@ public class ClientDemo {
 				inverted = true;
 			}
 
-			Thread.sleep(1000);
+			try {
+				Thread.sleep(1000);
+			} catch (final InterruptedException e) {
+				break;
+			}
 		}
+
+		wb.close();
 	}
 
 	private void exit(final Integer errorCode, final String message) {

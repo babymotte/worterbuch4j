@@ -3,7 +3,6 @@ package net.bbmsoft.worterbuch.client;
 import java.io.IOException;
 import java.lang.reflect.GenericArrayType;
 import java.lang.reflect.Type;
-import java.net.Socket;
 import java.net.URI;
 import java.util.Arrays;
 import java.util.Collections;
@@ -176,9 +175,8 @@ public class WorterbuchClient implements AutoCloseable {
 		WorterbuchClient wb;
 
 		try {
-			final var socket = new Socket(uri.getHost(), uri.getPort());
 
-			final var clientSocket = new TcpClientSocket(socket, onDisconnect, onError);
+			final var clientSocket = new TcpClientSocket(uri, onDisconnect, onError);
 
 			wb = new WorterbuchClient(exec, onDisconnect, onError, clientSocket);
 
