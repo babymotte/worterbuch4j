@@ -1,3 +1,24 @@
+Bundle-Name: Wörterbuch4j
+
+Bundle-Version: 3.1.3
+
+Bundle-Description: A Wörterbuch client library for the JVM
+
+Bundle-Developers: mbachmann@bbmsoft.net; \
+ 	name="Michael Bachmann"
+
+Bundle-SCM: url=https://github.com/babymotte/worterbuch4j, \
+ 	connection=scm:git:https://github.com/babymotte/worterbuch4j.git, \
+ 	developerConnection=scm:git:git@github.com:babymotte/worterbuch4j.git
+
+Bundle-License: Apache-2.0; \
+    link="https://www.apache.org/licenses/LICENSE-2.0.html"; \
+    description="A business-friendly OSS license"
+
+Export-Package: \
+	net.bbmsoft.worterbuch.client,\
+	net.bbmsoft.worterbuch.client.collections
+
 src = src, generated/model
 
 -buildpath: \
@@ -17,8 +38,7 @@ src = src, generated/model
 	net.bbmsoft.worterbuch.client.model,\
 	net.bbmsoft.worterbuch.client.pending,\
 	net.bbmsoft.worterbuch.client.impl
-
-Export-Package: \
-	net.bbmsoft.worterbuch.client,\
-	net.bbmsoft.worterbuch.client.collections
-Bundle-Version: 3.1.3
+	
+-pom: groupid=net.bbmsoft, \
+ 	where=META-INF/maven/pom.xml, \
+ 	version=${versionmask;===;${Bundle-Version}}
