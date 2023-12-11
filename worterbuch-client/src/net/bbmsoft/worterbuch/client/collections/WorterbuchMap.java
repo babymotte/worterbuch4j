@@ -9,6 +9,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Executor;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
@@ -223,6 +224,13 @@ public class WorterbuchMap<T> implements Map<String, T> {
 	}
 
 	public long addListener(BiConsumer<String, T> listener) {
+		return this.addListener(listener, null);
+	}
+
+	public long addListener(BiConsumer<String, T> listener, Executor executor) {
+
+		Executor theExecutor = executor != null ? executor : Runnable::run;
+
 		String key = this.rootKey + "/?";
 		var tid = this.wbClient.pSubscribe(key, true, true, Optional.empty(), this.valueType, e -> {
 			if (e.keyValuePairs != null) {
@@ -230,14 +238,14 @@ public class WorterbuchMap<T> implements Map<String, T> {
 					var fullKey = kvp.getKey();
 					var value = kvp.getValue();
 					var trimmedKey = this.trimKey(fullKey);
-					listener.accept(trimmedKey, value);
+					theExecutor.execute(() -> listener.accept(trimmedKey, value));
 				});
 			}
 			if (e.deleted != null) {
 				e.deleted.forEach(kvp -> {
 					var fullKey = kvp.getKey();
 					var trimmedKey = this.trimKey(fullKey);
-					listener.accept(trimmedKey, null);
+					theExecutor.execute(() -> listener.accept(trimmedKey, null));
 				});
 			}
 		}, this.errorHandler);

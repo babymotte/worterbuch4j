@@ -4,6 +4,7 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.Arrays;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Executors;
 import java.util.concurrent.TimeoutException;
 
 import org.osgi.framework.BundleContext;
@@ -21,7 +22,7 @@ import net.bbmsoft.worterbuch.client.collections.AsyncWorterbuchList;
 import net.bbmsoft.worterbuch.client.collections.WorterbuchMap;
 
 @Component(service = ClientDemo.class, immediate = true, property = { "osgi.command.scope=wbdemo",
-		"osgi.command.function=put", "osgi.command.function=print" })
+		"osgi.command.function=put","osgi.command.function=rm", "osgi.command.function=print" })
 public class ClientDemo {
 
 	private final Logger log = LoggerFactory.getLogger(this.getClass());
@@ -78,13 +79,11 @@ public class ClientDemo {
 		final var wb = WorterbuchClient.connect(uri, Arrays.asList("clientDemo/#"),
 				Arrays.asList(KeyValuePair.of("clientDemo/lastWill", "nein")), this::exit, this::error);
 
-		this.map = new WorterbuchMap<>(wb, "demo", "test", "myMap", String.class, System.err::println);
+		this.map = new WorterbuchMap<>(wb, "demo", "test", "myMap", String.class, this::error);
 
 		this.map.addListener((k, v) -> {
-			System.err.println(k + " -> " + v);
-		});
-
-		wb.subscribe("hello", true, true, String.class, System.err::println, System.err::println);
+			log.info("{} -> {}", k, v);
+		}, Executors.newSingleThreadExecutor(r -> new Thread(r, "Listener thread")));
 
 		final var list = new AsyncWorterbuchList<>(wb, "testapp", "collections", "asyncList", HelloWorld.class,
 				this::error);
@@ -139,7 +138,7 @@ public class ClientDemo {
 	}
 
 	private void error(final Throwable th) {
-		th.printStackTrace();
+		log.error("Error:", th);
 		this.exit(-1, th.getMessage());
 	}
 
@@ -147,8 +146,12 @@ public class ClientDemo {
 		this.map.put(key, value);
 	}
 
+	public void rm(final String key) {
+		this.map.remove(key);
+	}
+
 	public void print() {
-		this.map.forEach((k, v) -> System.out.println(k + " -> " + v));
+		this.map.forEach((k, v) -> log.info(k + " -> " + v));
 	}
 
 }
