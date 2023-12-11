@@ -83,7 +83,7 @@ public class ClientDemo {
 
 		this.map.addListener((k, v) -> {
 			log.info("{} -> {}", k, v);
-		}, Executors.newSingleThreadExecutor(r -> new Thread(r, "Listener thread")));
+		}, true, false, Executors.newSingleThreadExecutor(r -> new Thread(r, "Listener thread")));
 
 		final var list = new AsyncWorterbuchList<>(wb, "testapp", "collections", "asyncList", HelloWorld.class,
 				this::error);

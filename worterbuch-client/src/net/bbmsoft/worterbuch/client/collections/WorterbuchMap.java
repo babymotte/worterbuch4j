@@ -223,16 +223,16 @@ public class WorterbuchMap<T> implements Map<String, T> {
 		return Utils.trimKey(fullKey, this.rootKey);
 	}
 
-	public long addListener(BiConsumer<String, T> listener) {
-		return this.addListener(listener, null);
+	public long addListener(BiConsumer<String, T> listener, boolean unique, boolean liveOnly) {
+		return this.addListener(listener, unique, liveOnly, null);
 	}
 
-	public long addListener(BiConsumer<String, T> listener, Executor executor) {
+	public long addListener(BiConsumer<String, T> listener, boolean unique, boolean liveOnly, Executor executor) {
 
 		Executor theExecutor = executor != null ? executor : Runnable::run;
 
 		String key = this.rootKey + "/?";
-		var tid = this.wbClient.pSubscribe(key, true, true, Optional.empty(), this.valueType, e -> {
+		var tid = this.wbClient.pSubscribe(key, unique, liveOnly, Optional.of(1L), this.valueType, e -> {
 			if (e.keyValuePairs != null) {
 				e.keyValuePairs.forEach(kvp -> {
 					var fullKey = kvp.getKey();
