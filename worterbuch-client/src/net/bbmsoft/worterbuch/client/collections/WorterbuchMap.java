@@ -15,6 +15,28 @@ import net.bbmsoft.worterbuch.client.KeyValuePair;
 import net.bbmsoft.worterbuch.client.WorterbuchClient;
 import net.bbmsoft.worterbuch.client.WorterbuchException;
 
+/**
+ * A {@link Map} implementation that uses worterbuch as its data store. This
+ * implementation does not store any data locally, all operations are done
+ * directly on the underlying worterbuch instance.
+ * <p>
+ * Concurrent access to this map (both from multiple threads within the same JVM
+ * and from separate JVMs) will not cause any data races that will leave the Map
+ * in a corrupted state, however care needs to be taken when using
+ * check-then-act patterns because there is no option to lock the contents of
+ * the map across instances.<br>
+ * In other words calling {@link #put(String, Object)} simultaneously from different threads or JVMs at the same time, even with the same key, is fine (last one wins), however something like
+ * <code>
+ * <pre>
+ * if (!map.containsKey("key")) {
+ * 	map.put("key", "value");
+ * }
+ * </pre>
+ * </code>
+ * may produce unexpected results because another client may put data to "key" after {@code map.containsKey("key")} but before {@code map.put("key", "value");}
+ * 
+ * @param <T> the type of the Map's values.
+ */
 public class WorterbuchMap<T> implements Map<String, T> {
 
 	private final String rootKey;
