@@ -18,14 +18,17 @@ import net.bbmsoft.worterbuch.client.KeyValuePair;
 import net.bbmsoft.worterbuch.client.WorterbuchClient;
 import net.bbmsoft.worterbuch.client.WorterbuchException;
 import net.bbmsoft.worterbuch.client.collections.AsyncWorterbuchList;
+import net.bbmsoft.worterbuch.client.collections.WorterbuchMap;
 
-@Component
+@Component(service = ClientDemo.class, immediate = true, property = { "osgi.command.scope=wbdemo",
+		"osgi.command.function=put", "osgi.command.function=print" })
 public class ClientDemo {
 
 	private final Logger log = LoggerFactory.getLogger(this.getClass());
 	private volatile BundleContext ctx;
 	private volatile boolean running;
 	private volatile Thread thread;
+	private WorterbuchMap<String> map;
 
 	static class HelloWorld {
 		public String greeting;
@@ -74,6 +77,12 @@ public class ClientDemo {
 
 		final var wb = WorterbuchClient.connect(uri, Arrays.asList("clientDemo/#"),
 				Arrays.asList(KeyValuePair.of("clientDemo/lastWill", "nein")), this::exit, this::error);
+
+		this.map = new WorterbuchMap<>(wb, "demo", "test", "myMap", String.class, System.err::println);
+
+		this.map.addListener((k, v) -> {
+			System.err.println(k + " -> " + v);
+		});
 
 		wb.subscribe("hello", true, true, String.class, System.err::println, System.err::println);
 
@@ -132,6 +141,14 @@ public class ClientDemo {
 	private void error(final Throwable th) {
 		th.printStackTrace();
 		this.exit(-1, th.getMessage());
+	}
+
+	public void put(final String key, final String value) {
+		this.map.put(key, value);
+	}
+
+	public void print() {
+		this.map.forEach((k, v) -> System.out.println(k + " -> " + v));
 	}
 
 }

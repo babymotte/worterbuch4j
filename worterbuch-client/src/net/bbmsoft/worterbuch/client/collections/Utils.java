@@ -15,6 +15,6 @@ public class Utils {
 	}
 
 	public static String trimKey(String fullKey, String rootKey) {
-		return Utils.unescape(fullKey).substring(rootKey.length());
+		return Utils.unescape(fullKey).substring(rootKey.length() + 1);
 	}
 }

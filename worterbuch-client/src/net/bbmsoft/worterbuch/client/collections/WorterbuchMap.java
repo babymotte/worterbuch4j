@@ -6,8 +6,10 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
@@ -218,5 +220,31 @@ public class WorterbuchMap<T> implements Map<String, T> {
 
 	String trimKey(String fullKey) {
 		return Utils.trimKey(fullKey, this.rootKey);
+	}
+
+	public long addListener(BiConsumer<String, T> listener) {
+		String key = this.rootKey + "/?";
+		var tid = this.wbClient.pSubscribe(key, true, true, Optional.empty(), this.valueType, e -> {
+			if (e.keyValuePairs != null) {
+				e.keyValuePairs.forEach(kvp -> {
+					var fullKey = kvp.getKey();
+					var value = kvp.getValue();
+					var trimmedKey = this.trimKey(fullKey);
+					listener.accept(trimmedKey, value);
+				});
+			}
+			if (e.deleted != null) {
+				e.deleted.forEach(kvp -> {
+					var fullKey = kvp.getKey();
+					var trimmedKey = this.trimKey(fullKey);
+					listener.accept(trimmedKey, null);
+				});
+			}
+		}, this.errorHandler);
+		return tid;
+	}
+
+	public void removeListener(long transactionId) {
+		this.wbClient.unsubscribeLs(transactionId, this.errorHandler);
 	}
 }
