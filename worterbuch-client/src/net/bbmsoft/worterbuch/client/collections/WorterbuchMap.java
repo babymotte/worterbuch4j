@@ -6,8 +6,11 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Executor;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
@@ -15,6 +18,30 @@ import net.bbmsoft.worterbuch.client.KeyValuePair;
 import net.bbmsoft.worterbuch.client.WorterbuchClient;
 import net.bbmsoft.worterbuch.client.WorterbuchException;
 
+/**
+ * A {@link Map} implementation that uses worterbuch as its data store. This
+ * implementation does not store any data locally, all operations are done
+ * directly on the underlying worterbuch instance.
+ * <p>
+ * Concurrent access to this map (both from multiple threads within the same JVM
+ * and from separate JVMs) will not cause any data races that will leave the Map
+ * in a corrupted state, however care needs to be taken when using
+ * check-then-act patterns because there is no option to lock the contents of
+ * the map across instances.<br>
+ * In other words calling {@link #put(String, Object)} simultaneously from
+ * different threads or JVMs at the same time, even with the same key, is fine
+ * (last one wins), however something like <code>
+ * <pre>
+ * if (!map.containsKey("key")) {
+ * 	map.put("key", "value");
+ * }
+ * </pre>
+ * </code> may produce unexpected results because another client may put data to
+ * "key" after {@code map.containsKey("key")} but before
+ * {@code map.put("key", "value");}
+ * 
+ * @param <T> the type of the Map's values.
+ */
 public class WorterbuchMap<T> implements Map<String, T> {
 
 	private final String rootKey;
@@ -49,10 +76,10 @@ public class WorterbuchMap<T> implements Map<String, T> {
 
 	@Override
 	public boolean containsKey(final Object key) {
-		final var escapedKey = Utils.escape(key.toString());
+		final var fullKey = this.fullKey(key);
 		try {
 			final var keys = this.wbClient.ls(this.rootKey).get();
-			return keys.contains(escapedKey);
+			return keys.contains(fullKey);
 		} catch (final InterruptedException e) {
 			Thread.currentThread().interrupt();
 			return false;
@@ -76,8 +103,7 @@ public class WorterbuchMap<T> implements Map<String, T> {
 
 	@Override
 	public T get(final Object key) {
-		final var escapedKey = Utils.escape(key.toString());
-		final var fullKey = this.rootKey + "/" + escapedKey;
+		final var fullKey = this.fullKey(key);
 		try {
 			final var state = this.wbClient.get(fullKey, this.valueType).get();
 			return state.orElse(null);
@@ -91,8 +117,7 @@ public class WorterbuchMap<T> implements Map<String, T> {
 
 	@Override
 	public T put(final String key, final T value) {
-		final var escapedKey = Utils.escape(key.toString());
-		final var fullKey = this.rootKey + "/" + escapedKey;
+		final var fullKey = this.fullKey(key);
 		try {
 			final var state = this.wbClient.get(fullKey, this.valueType).get();
 			final var currentValue = state.orElse(null);
@@ -108,8 +133,7 @@ public class WorterbuchMap<T> implements Map<String, T> {
 
 	@Override
 	public T remove(final Object key) {
-		final var escapedKey = Utils.escape(key.toString());
-		final var fullKey = this.rootKey + "/" + escapedKey;
+		final var fullKey = this.fullKey(key);
 		try {
 			final var state = this.wbClient.delete(fullKey, this.valueType).get();
 			return state.orElse(null);
@@ -135,7 +159,7 @@ public class WorterbuchMap<T> implements Map<String, T> {
 	public Set<String> keySet() {
 		try {
 			final var keys = this.wbClient.ls(this.rootKey).get();
-			return keys.stream().map(Utils::unescape).collect(Collectors.toSet());
+			return keys.stream().map(this::trimKey).collect(Collectors.toSet());
 		} catch (final InterruptedException e) {
 			Thread.currentThread().interrupt();
 			return Collections.emptySet();
@@ -176,7 +200,7 @@ public class WorterbuchMap<T> implements Map<String, T> {
 
 			@Override
 			public String getKey() {
-				return Utils.unescape(kvp.getKey());
+				return WorterbuchMap.this.trimKey(kvp.getKey());
 			}
 
 			@Override
@@ -191,4 +215,44 @@ public class WorterbuchMap<T> implements Map<String, T> {
 		};
 	}
 
+	String fullKey(Object key) {
+		return Utils.fullKey(key, this.rootKey);
+	}
+
+	String trimKey(String fullKey) {
+		return Utils.trimKey(fullKey, this.rootKey);
+	}
+
+	public long addListener(BiConsumer<String, T> listener, boolean unique, boolean liveOnly) {
+		return this.addListener(listener, unique, liveOnly, null);
+	}
+
+	public long addListener(BiConsumer<String, T> listener, boolean unique, boolean liveOnly, Executor executor) {
+
+		Executor theExecutor = executor != null ? executor : Runnable::run;
+
+		String key = this.rootKey + "/?";
+		var tid = this.wbClient.pSubscribe(key, unique, liveOnly, Optional.of(1L), this.valueType, e -> {
+			if (e.keyValuePairs != null) {
+				e.keyValuePairs.forEach(kvp -> {
+					var fullKey = kvp.getKey();
+					var value = kvp.getValue();
+					var trimmedKey = this.trimKey(fullKey);
+					theExecutor.execute(() -> listener.accept(trimmedKey, value));
+				});
+			}
+			if (e.deleted != null) {
+				e.deleted.forEach(kvp -> {
+					var fullKey = kvp.getKey();
+					var trimmedKey = this.trimKey(fullKey);
+					theExecutor.execute(() -> listener.accept(trimmedKey, null));
+				});
+			}
+		}, this.errorHandler);
+		return tid;
+	}
+
+	public void removeListener(long transactionId) {
+		this.wbClient.unsubscribeLs(transactionId, this.errorHandler);
+	}
 }

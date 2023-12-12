@@ -11,7 +11,10 @@
 -runrequires: \
 	osgi.identity;filter:='(osgi.identity=org.apache.felix.gogo.shell)',\
 	osgi.identity;filter:='(osgi.identity=org.apache.felix.gogo.command)',\
-	bnd.identity;id=worterbuch-client-demo
+	bnd.identity;id=worterbuch-client-demo,\
+	bnd.identity;id='org.apache.felix.gogo.runtime',\
+	bnd.identity;id='org.osgi.service.metatype',\
+	bnd.identity;id='org.apache.felix.configadmin'
 
 -runvm: -Dlogback.configurationFile=resources/logback.xml
 
@@ -41,4 +44,5 @@
 	org.eclipse.jetty.xml;version='[9.4.12,9.4.13)',\
 	slf4j.api;version='[1.7.25,1.7.26)',\
 	worterbuch-client;version=snapshot,\
-	worterbuch-client-demo;version=snapshot
+	worterbuch-client-demo;version=snapshot,\
+	org.osgi.service.metatype;version='[1.4.0,1.4.1)'

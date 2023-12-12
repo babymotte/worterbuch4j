@@ -13,6 +13,17 @@ import java.util.function.Consumer;
 import net.bbmsoft.worterbuch.client.WorterbuchClient;
 import net.bbmsoft.worterbuch.client.WorterbuchException;
 
+/**
+ * A {@link Map} implementation that automatically synchronizes its contents to
+ * worterbuch. A {@link HashMap} is used to store the data of this Map locally
+ * and it will asynchronously be synchronized to worterbuch in the background.
+ * <p>
+ * Simultaneous writes from both multiple threads or multiple JVMs will lead to
+ * data corruption and/or lost updates, however updating the map from one JVM
+ * while reading it from another is safe.
+ * 
+ * @param <T> the type of the Map's values.
+ */
 public class AsyncWorterbuchMap<T> implements Map<String, T> {
 
 	private final WorterbuchClient wbClient;
