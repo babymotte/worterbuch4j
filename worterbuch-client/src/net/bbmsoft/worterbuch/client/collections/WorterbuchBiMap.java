@@ -13,16 +13,15 @@ import com.google.common.collect.BiMap;
 
 import net.bbmsoft.worterbuch.client.KeyValuePair;
 import net.bbmsoft.worterbuch.client.WorterbuchClient;
-import net.bbmsoft.worterbuch.client.WorterbuchException;
 
 public class WorterbuchBiMap implements BiMap<String, String> {
 
 	private final String rootKey;
 	private final WorterbuchClient wbClient;
-	private final Consumer<WorterbuchException> errorHandler;
+	private final Consumer<? super Throwable> errorHandler;
 
 	public WorterbuchBiMap(final WorterbuchClient wbClient, final String application, final String namespace,
-			final String mapName, final Consumer<WorterbuchException> errorHandler) {
+			final String mapName, final Consumer<? super Throwable> errorHandler) {
 		this.wbClient = wbClient;
 		this.errorHandler = errorHandler;
 		this.rootKey = application + "/state/" + namespace + "/" + mapName;

@@ -16,7 +16,6 @@ import java.util.stream.Collectors;
 
 import net.bbmsoft.worterbuch.client.KeyValuePair;
 import net.bbmsoft.worterbuch.client.WorterbuchClient;
-import net.bbmsoft.worterbuch.client.WorterbuchException;
 
 /**
  * A {@link Map} implementation that uses worterbuch as its data store. This
@@ -47,10 +46,10 @@ public class WorterbuchMap<T> implements Map<String, T> {
 	private final String rootKey;
 	private final WorterbuchClient wbClient;
 	private final Class<T> valueType;
-	private final Consumer<WorterbuchException> errorHandler;
+	private final Consumer<? super Throwable> errorHandler;
 
 	public WorterbuchMap(final WorterbuchClient wbClient, final String application, final String namespace,
-			final String mapName, final Class<T> valueType, final Consumer<WorterbuchException> errorHandler) {
+			final String mapName, final Class<T> valueType, final Consumer<? super Throwable> errorHandler) {
 		this.wbClient = wbClient;
 		this.errorHandler = errorHandler;
 		this.rootKey = application + "/state/" + namespace + "/" + mapName;

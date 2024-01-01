@@ -2,6 +2,7 @@ package net.bbmsoft.worterbuch.client.impl;
 
 import java.io.IOException;
 import java.net.URI;
+import java.util.Optional;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -10,6 +11,7 @@ import java.util.function.Consumer;
 import org.eclipse.jetty.websocket.api.Session;
 import org.eclipse.jetty.websocket.api.WebSocketAdapter;
 import org.eclipse.jetty.websocket.api.WriteCallback;
+import org.eclipse.jetty.websocket.client.ClientUpgradeRequest;
 import org.eclipse.jetty.websocket.client.WebSocketClient;
 
 import net.bbmsoft.worterbuch.client.ClientSocket;
@@ -19,19 +21,28 @@ public class WsClientSocket implements ClientSocket, WriteCallback {
 
 	private final WebSocketClient client;
 	private final URI uri;
-	private final Consumer<Throwable> onError;
+	private final Consumer<? super Throwable> onError;
 	private Session session;
+	private final Optional<String> authtoken;
 
-	public WsClientSocket(final WebSocketClient client, final URI uri, final Consumer<Throwable> onError) {
+	public WsClientSocket(final WebSocketClient client, final URI uri, final Consumer<? super Throwable> onError,
+			final Optional<String> authtoken) {
 		this.client = client;
 		this.uri = uri;
 		this.onError = onError;
+		this.authtoken = authtoken;
 	}
 
 	public void open(final WebSocketAdapter socket) throws IOException {
 
 		try {
-			this.session = this.client.connect(socket, this.uri).get(Config.CONNECT_TIMEOUT, TimeUnit.SECONDS);
+
+			final var request = new ClientUpgradeRequest();
+			request.setRequestURI(this.uri);
+			request.setLocalEndpoint(this.client);
+			this.authtoken.ifPresent(token -> request.setHeader("Authorization", "Bearer " + token));
+
+			this.session = this.client.connect(socket, this.uri, request).get(Config.CONNECT_TIMEOUT, TimeUnit.SECONDS);
 			this.session.getPolicy().setMaxTextMessageSize(1024 * 1024 * 1024);
 		} catch (final ExecutionException | IOException e) {
 			this.onError.accept(new WorterbuchException("Failed to connect to server", e));

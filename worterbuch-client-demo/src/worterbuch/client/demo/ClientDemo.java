@@ -3,8 +3,8 @@ package worterbuch.client.demo;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.Arrays;
+import java.util.Optional;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Executors;
 import java.util.concurrent.TimeoutException;
 
 import org.osgi.framework.BundleContext;
@@ -15,38 +15,19 @@ import org.osgi.service.component.annotations.Deactivate;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import net.bbmsoft.worterbuch.client.KeyValuePair;
 import net.bbmsoft.worterbuch.client.WorterbuchClient;
 import net.bbmsoft.worterbuch.client.WorterbuchException;
 import net.bbmsoft.worterbuch.client.collections.AsyncWorterbuchList;
-import net.bbmsoft.worterbuch.client.collections.WorterbuchMap;
 
-@Component(service = ClientDemo.class, immediate = true, property = { "osgi.command.scope=wbdemo",
-		"osgi.command.function=put","osgi.command.function=rm", "osgi.command.function=print" })
+@Component
 public class ClientDemo {
 
 	private final Logger log = LoggerFactory.getLogger(this.getClass());
 	private volatile BundleContext ctx;
 	private volatile boolean running;
 	private volatile Thread thread;
-	private WorterbuchMap<String> map;
 
-	static class HelloWorld {
-		public String greeting;
-		public String gretee;
-
-		public HelloWorld() {
-		}
-
-		public HelloWorld(final String greeting, final String gretee) {
-			this.greeting = greeting;
-			this.gretee = gretee;
-		}
-
-		@Override
-		public String toString() {
-			return this.greeting + ", " + this.gretee + "!";
-		}
+	static record HelloWorld(String greeting, String gretee) {
 	}
 
 	@Activate
@@ -76,14 +57,13 @@ public class ClientDemo {
 
 		final var uri = new URI("tcp://localhost:8081");
 
-		final var wb = WorterbuchClient.connect(uri, Arrays.asList("clientDemo/#"),
-				Arrays.asList(KeyValuePair.of("clientDemo/lastWill", "nein")), this::exit, this::error);
+		final var authToken = System.getenv("WORTERBUCH_AUTH_TOKEN");
 
-		this.map = new WorterbuchMap<>(wb, "demo", "test", "myMap", String.class, this::error);
+		final var wb = authToken != null ? WorterbuchClient.connect(uri, authToken, this::exit, this::error)
+				: WorterbuchClient.connect(uri, this::exit, this::error);
 
-		this.map.addListener((k, v) -> {
-			log.info("{} -> {}", k, v);
-		}, true, false, Executors.newSingleThreadExecutor(r -> new Thread(r, "Listener thread")));
+		wb.subscribeArray("testapp/state/collections/asyncList", true, true, HelloWorld.class, this::printOptional,
+				System.err::println);
 
 		final var list = new AsyncWorterbuchList<>(wb, "testapp", "collections", "asyncList", HelloWorld.class,
 				this::error);
@@ -138,20 +118,14 @@ public class ClientDemo {
 	}
 
 	private void error(final Throwable th) {
-		log.error("Error:", th);
+		th.printStackTrace();
 		this.exit(-1, th.getMessage());
 	}
 
-	public void put(final String key, final String value) {
-		this.map.put(key, value);
-	}
-
-	public void rm(final String key) {
-		this.map.remove(key);
-	}
-
-	public void print() {
-		this.map.forEach((k, v) -> log.info(k + " -> " + v));
+	private <T> void printOptional(final Optional<T[]> optional) {
+		optional.ifPresentOrElse(
+				it -> System.err.println(String.join(", ", Arrays.asList(it).stream().map(Object::toString).toList())),
+				() -> System.err.println("empty"));
 	}
 
 }

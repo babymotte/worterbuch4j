@@ -6,7 +6,6 @@ import java.io.InputStreamReader;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
-import java.util.Arrays;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeoutException;
 import java.util.function.Consumer;
@@ -47,8 +46,7 @@ public class Benchmark {
 			new Subscriber(uri).start();
 		}
 
-		this.wb = WorterbuchClient.connect(uri, Arrays.asList("clientDemo/#"),
-				Arrays.asList(KeyValuePair.of("clientDemo/lastWill", "nein")), this::exit, this::error);
+		this.wb = WorterbuchClient.connect(uri, this::exit, this::error);
 
 		final var start = System.currentTimeMillis();
 

@@ -11,7 +11,6 @@ import java.util.concurrent.ExecutionException;
 import java.util.function.Consumer;
 
 import net.bbmsoft.worterbuch.client.WorterbuchClient;
-import net.bbmsoft.worterbuch.client.WorterbuchException;
 
 /**
  * A {@link Map} implementation that automatically synchronizes its contents to
@@ -29,11 +28,11 @@ public class AsyncWorterbuchMap<T> implements Map<String, T> {
 	private final WorterbuchClient wbClient;
 	private final Map<String, T> localCache;
 	private final String rootKey;
-	private final Consumer<WorterbuchException> errorHandler;
+	private final Consumer<? super Throwable> errorHandler;
 	private final Class<T> valueType;
 
 	public AsyncWorterbuchMap(final WorterbuchClient wbClient, final String application, final String namespace,
-			final String mapName, final Class<T> valueType, final Consumer<WorterbuchException> errorHandler)
+			final String mapName, final Class<T> valueType, final Consumer<? super Throwable> errorHandler)
 			throws ExecutionException {
 		this.wbClient = wbClient;
 		this.valueType = valueType;

@@ -25,10 +25,10 @@ public class TcpClientSocket implements ClientSocket {
 	private final InputStream ins;
 	private Thread receiveThread;
 	private final BiConsumer<Integer, String> onDisconnect;
-	private final Consumer<Throwable> onError;
+	private final Consumer<? super Throwable> onError;
 
 	public TcpClientSocket(final URI uri, final BiConsumer<Integer, String> onDisconnect,
-			final Consumer<Throwable> onError) throws IOException {
+			final Consumer<? super Throwable> onError) throws IOException {
 
 		this.socket = new Socket(uri.getHost(), uri.getPort());
 		this.onDisconnect = onDisconnect;
