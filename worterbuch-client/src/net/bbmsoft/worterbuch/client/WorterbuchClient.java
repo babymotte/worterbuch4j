@@ -138,8 +138,10 @@ public class WorterbuchClient implements AutoCloseable {
 						"Protocol version " + serverInfo.getProtocolVersion() + " is not supported by this client."));
 			}
 
+			client.clientId = welcome.getClientId();
+
 			if (serverInfo.isAuthenticationRequired()) {
-				client.authenticate(welcome.getClientId(), authtoken);
+				client.authenticate(authtoken);
 			}
 
 			try {
@@ -213,7 +215,7 @@ public class WorterbuchClient implements AutoCloseable {
 			client.clientId = welcome.getClientId();
 
 			if (serverInfo.isAuthenticationRequired()) {
-				client.authenticate(welcome.getClientId(), authtoken);
+				client.authenticate(authtoken);
 			}
 
 			try {
@@ -432,12 +434,12 @@ public class WorterbuchClient implements AutoCloseable {
 		return this.clientId;
 	}
 
-	public Future<Optional<String[]>> graveGoods() {
+	public Future<Optional<String[]>> getGraveGoods() {
 		return this.getArray("$SYS/clients/" + this.getClientId() + "/graveGoods", String.class);
 	}
 
 	@SuppressWarnings("rawtypes")
-	public Future<Optional<KeyValuePair[]>> lastWill() {
+	public Future<Optional<KeyValuePair[]>> getLastWill() {
 		return this.getArray("$SYS/clients/" + this.getClientId() + "/lastWill", KeyValuePair.class);
 	}
 
@@ -832,9 +834,9 @@ public class WorterbuchClient implements AutoCloseable {
 		}
 	}
 
-	void authenticate(final String clientId, final Optional<String> authToken) {
+	void authenticate(final Optional<String> authToken) {
 		authToken.ifPresent(token -> {
-			final var salted = clientId + token;
+			final var salted = this.getClientId() + token;
 			final var hashed = Hashing.sha256().hashString(salted, StandardCharsets.UTF_8).toString();
 			final var auth = new AuthenticationRequest(hashed);
 			final var msg = new ClientMessage();
