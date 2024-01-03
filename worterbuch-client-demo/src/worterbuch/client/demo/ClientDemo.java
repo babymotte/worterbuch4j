@@ -3,6 +3,7 @@ package worterbuch.client.demo;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.Arrays;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeoutException;
@@ -28,6 +29,27 @@ public class ClientDemo {
 	private volatile Thread thread;
 
 	static record HelloWorld(String greeting, String gretee) {
+
+		@Override
+		public int hashCode() {
+			return Objects.hash(this.greeting, this.gretee);
+		}
+
+		@Override
+		public boolean equals(final Object obj) {
+			if (this == obj) {
+				return true;
+			}
+			if (obj == null) {
+				return false;
+			}
+			if (this.getClass() != obj.getClass()) {
+				return false;
+			}
+			final var other = (HelloWorld) obj;
+			return Objects.equals(this.greeting, other.greeting) && Objects.equals(this.gretee, other.gretee);
+		}
+
 	}
 
 	@Activate
