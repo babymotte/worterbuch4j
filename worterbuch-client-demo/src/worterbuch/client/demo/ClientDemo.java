@@ -16,6 +16,7 @@ import org.osgi.service.component.annotations.Deactivate;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import net.bbmsoft.worterbuch.client.KeyValuePair;
 import net.bbmsoft.worterbuch.client.WorterbuchClient;
 import net.bbmsoft.worterbuch.client.WorterbuchException;
 import net.bbmsoft.worterbuch.client.collections.AsyncWorterbuchList;
@@ -89,6 +90,9 @@ public class ClientDemo {
 
 		final var list = new AsyncWorterbuchList<>(wb, "testapp", "collections", "asyncList", HelloWorld.class,
 				this::error);
+
+		wb.setLastWill(new KeyValuePair<?>[] { KeyValuePair.of("testapp/state/running", false) }, System.err::println);
+		wb.setGraveGoods(new String[] { "testapp/state/collections/asyncList" }, System.err::println);
 
 		var counter = list.size() - 1;
 		var inverted = counter >= 2;
