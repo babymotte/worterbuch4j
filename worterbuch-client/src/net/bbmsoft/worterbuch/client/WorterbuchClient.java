@@ -411,7 +411,7 @@ public class WorterbuchClient implements AutoCloseable {
 		return tid;
 	}
 
-	public void unubscribe(final long transactionId, final Consumer<? super Throwable> onError) {
+	public void unsubscribe(final long transactionId, final Consumer<? super Throwable> onError) {
 		this.exec.execute(() -> this.doUnsubscribe(transactionId, onError));
 	}
 
