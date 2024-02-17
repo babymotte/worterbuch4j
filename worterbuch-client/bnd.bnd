@@ -11,9 +11,9 @@ Bundle-SCM: url=https://github.com/babymotte/worterbuch4j, \
  	connection=scm:git:https://github.com/babymotte/worterbuch4j.git, \
  	developerConnection=scm:git:git@github.com:babymotte/worterbuch4j.git
 
-Bundle-License: Apache-2.0; \
-    link="https://www.apache.org/licenses/LICENSE-2.0.html"; \
-    description="A business-friendly OSS license"
+Bundle-License: AGPL-3.0-or-later; \
+    link="https://www.gnu.org/licenses/agpl-3.0.html"; \
+    description="A free software, copyleft license."
 
 Export-Package: \
 	net.bbmsoft.worterbuch.client,\
