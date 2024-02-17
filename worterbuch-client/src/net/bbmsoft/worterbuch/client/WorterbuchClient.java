@@ -93,7 +93,7 @@ public class WorterbuchClient implements AutoCloseable {
 			final Consumer<Throwable> onError) throws InterruptedException, TimeoutException {
 
 		final var exec = new WrappingExecutor(
-				Executors.newSingleThreadScheduledExecutor(r -> new Thread(r, "worterbuch-client")), onError);
+				Executors.newSingleThreadScheduledExecutor(r -> new Thread(r, "worterbuch-client-callbacks")), onError);
 		return WorterbuchClient.connect(uri, Optional.empty(), exec, onDisconnect, onError);
 	}
 
@@ -102,7 +102,7 @@ public class WorterbuchClient implements AutoCloseable {
 			throws InterruptedException, TimeoutException {
 
 		final var exec = new WrappingExecutor(
-				Executors.newSingleThreadScheduledExecutor(r -> new Thread(r, "worterbuch-client")), onError);
+				Executors.newSingleThreadScheduledExecutor(r -> new Thread(r, "worterbuch-client-callbacks")), onError);
 		return WorterbuchClient.connect(uri, Optional.of(authToken), exec, onDisconnect, onError);
 	}
 
@@ -272,6 +272,7 @@ public class WorterbuchClient implements AutoCloseable {
 
 	private final Logger log = LoggerFactory.getLogger(WorterbuchClient.class);
 	private final AtomicLong transactionId = new AtomicLong();
+	private final AtomicLong lastAckedTransactionId = new AtomicLong();
 	private final ObjectMapper objectMapper = new ObjectMapper();
 
 	private final Map<Long, PendingGet<?>> pendingGets = new HashMap<>();
@@ -307,16 +308,50 @@ public class WorterbuchClient implements AutoCloseable {
 		this.exec.execute(this::doClose);
 	}
 
+	private long acquireTid() {
+		final var nextTid = this.transactionId.incrementAndGet();
+		final var lag = nextTid - this.lastAckedTransactionId.get();
+		if (lag > 200) {
+			while ((nextTid - this.lastAckedTransactionId.get()) > 150) {
+				try {
+					Thread.sleep(0, 1_000);
+				} catch (final InterruptedException e) {
+					Thread.currentThread().interrupt();
+					return nextTid;
+				}
+			}
+		}
+		return nextTid;
+	}
+
+	private Optional<Long> tryAcquireTid() {
+		final var nextTid = this.transactionId.incrementAndGet();
+		final var lag = nextTid - this.lastAckedTransactionId.get();
+		return lag > 200 ? Optional.empty() : Optional.of(nextTid);
+	}
+
 	public <T> long set(final String key, final T value, final Consumer<? super Throwable> onError) {
-		final var tid = this.transactionId.incrementAndGet();
+		final var tid = this.acquireTid();
 		this.exec.execute(() -> this.doSet(tid, key, value, onError));
 		return tid;
 	}
 
+	public <T> Optional<Long> trySet(final String key, final T value, final Consumer<? super Throwable> onError) {
+		final var maybeTid = this.tryAcquireTid();
+		maybeTid.ifPresent(tid -> this.exec.execute(() -> this.doSet(tid, key, value, onError)));
+		return maybeTid;
+	}
+
 	public <T> long publish(final String key, final T value, final Consumer<? super Throwable> onError) {
-		final var tid = this.transactionId.incrementAndGet();
+		final var tid = this.acquireTid();
 		this.exec.execute(() -> this.doPublish(tid, key, value, onError));
 		return tid;
+	}
+
+	public <T> Optional<Long> tryPublish(final String key, final T value, final Consumer<? super Throwable> onError) {
+		final var maybeTid = this.tryAcquireTid();
+		maybeTid.ifPresent(tid -> this.exec.execute(() -> this.doPublish(tid, key, value, onError)));
+		return maybeTid;
 	}
 
 	public <T> Future<Optional<T>> get(final String key, final Class<T> type) {
@@ -327,7 +362,7 @@ public class WorterbuchClient implements AutoCloseable {
 
 	public <T> long get(final String key, final Class<T> type, final Consumer<Optional<T>> callback,
 			final Consumer<? super Throwable> onError) {
-		final var tid = this.transactionId.incrementAndGet();
+		final var tid = this.acquireTid();
 		this.exec.execute(() -> this.doGet(tid, key, type, callback, onError));
 		return tid;
 	}
@@ -340,7 +375,7 @@ public class WorterbuchClient implements AutoCloseable {
 
 	public <T> long getArray(final String key, final Class<T> elementType, final Consumer<Optional<T[]>> callback,
 			final Consumer<? super Throwable> onError) {
-		final var tid = this.transactionId.incrementAndGet();
+		final var tid = this.acquireTid();
 		this.exec.execute(() -> this.doGet(tid, key, (GenericArrayType) () -> elementType, callback, onError));
 		return tid;
 	}
@@ -353,7 +388,7 @@ public class WorterbuchClient implements AutoCloseable {
 
 	public <T> long pGet(final String pattern, final Class<T> type, final Consumer<List<KeyValuePair<T>>> callback,
 			final Consumer<? super Throwable> onError) {
-		final var tid = this.transactionId.incrementAndGet();
+		final var tid = this.acquireTid();
 		this.exec.execute(() -> this.doPGet(tid, pattern, type, callback, onError));
 		return tid;
 	}
@@ -366,7 +401,7 @@ public class WorterbuchClient implements AutoCloseable {
 
 	public <T> long delete(final String key, final Class<T> type, final Consumer<Optional<T>> callback,
 			final Consumer<? super Throwable> onError) {
-		final var tid = this.transactionId.incrementAndGet();
+		final var tid = this.acquireTid();
 		this.exec.execute(() -> this.doDelete(tid, key, type, callback, onError));
 		return tid;
 	}
@@ -383,7 +418,7 @@ public class WorterbuchClient implements AutoCloseable {
 
 	public <T> long pDelete(final String pattern, final Class<T> type, final Consumer<List<KeyValuePair<T>>> callback,
 			final Consumer<? super Throwable> onError) {
-		final var tid = this.transactionId.incrementAndGet();
+		final var tid = this.acquireTid();
 		this.exec.execute(() -> this.doPDelete(tid, pattern, type, callback, onError));
 		return tid;
 	}
@@ -400,14 +435,14 @@ public class WorterbuchClient implements AutoCloseable {
 
 	public long ls(final String parent, final Consumer<List<String>> callback,
 			final Consumer<? super Throwable> onError) {
-		final var tid = this.transactionId.incrementAndGet();
+		final var tid = this.acquireTid();
 		this.exec.execute(() -> this.doLs(tid, parent, callback, onError));
 		return tid;
 	}
 
 	public <T> long subscribe(final String key, final boolean unique, final boolean liveOnly, final Class<T> type,
 			final Consumer<Optional<T>> callback, final Consumer<? super Throwable> onError) {
-		final var tid = this.transactionId.incrementAndGet();
+		final var tid = this.acquireTid();
 		this.exec.execute(() -> this.doSubscribe(tid, key, unique, liveOnly, type, callback, onError));
 		return tid;
 	}
@@ -415,7 +450,7 @@ public class WorterbuchClient implements AutoCloseable {
 	public <T> long subscribeArray(final String key, final boolean unique, final boolean liveOnly,
 			final Class<T> elementType, final Consumer<Optional<T[]>> callback,
 			final Consumer<? super Throwable> onError) {
-		final var tid = this.transactionId.incrementAndGet();
+		final var tid = this.acquireTid();
 		this.exec.execute(() -> this.doSubscribe(tid, key, unique, liveOnly, (GenericArrayType) () -> elementType,
 				callback, onError));
 		return tid;
@@ -424,7 +459,7 @@ public class WorterbuchClient implements AutoCloseable {
 	public <T> long pSubscribe(final String pattern, final boolean unique, final boolean liveOnly,
 			final Optional<Long> aggregateEvents, final Class<T> type, final Consumer<PStateEvent<T>> callback,
 			final Consumer<? super Throwable> onError) {
-		final var tid = this.transactionId.incrementAndGet();
+		final var tid = this.acquireTid();
 		this.exec.execute(
 				() -> this.doPSubscribe(tid, pattern, unique, liveOnly, aggregateEvents, type, callback, onError));
 		return tid;
@@ -436,7 +471,7 @@ public class WorterbuchClient implements AutoCloseable {
 
 	public long subscribeLs(final String parent, final Consumer<List<String>> callback,
 			final Consumer<? super Throwable> onError) {
-		final var tid = this.transactionId.incrementAndGet();
+		final var tid = this.acquireTid();
 		this.exec.execute(() -> this.doSubscribeLs(tid, parent, callback, onError));
 		return tid;
 	}
@@ -476,6 +511,12 @@ public class WorterbuchClient implements AutoCloseable {
 		} else {
 			return this.set("$SYS/clients/" + this.getClientId() + "/lastWill", lastWill, onError);
 		}
+	}
+
+	public long getMessageLag() {
+		final var currentTid = this.transactionId.get();
+		final var lastAcked = this.lastAckedTransactionId.get();
+		return currentTid - lastAcked;
 	}
 
 	private <T> void doSet(final long tid, final String key, final T value, final Consumer<? super Throwable> onError) {
@@ -678,6 +719,11 @@ public class WorterbuchClient implements AutoCloseable {
 
 			final var ackContainer = parent.get("ack");
 			if (ackContainer != null) {
+				final var tidContainer = ackContainer.get("transactionId");
+				if (tidContainer != null) {
+					final var tid = tidContainer.asLong();
+					this.lastAckedTransactionId.set(tid);
+				}
 				return;
 			}
 

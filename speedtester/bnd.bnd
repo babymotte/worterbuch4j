@@ -1,0 +1,18 @@
+Bundle-Version: 1.0.0.${tstamp}
+
+-baseline: *
+-buildpath: \
+	org.eclipse.jetty.websocket.api,\
+	org.eclipse.jetty.websocket.client,\
+	org.eclipse.jetty.websocket.common,\
+	osgi.annotation;version='7.0.0',\
+	osgi.cmpn;version='7.0.0',\
+	worterbuch-client;version='latest'
+
+javac.source: 17
+javac.target: 17
+
+-includeresource: resources
+
+Private-Package: net.bbmsoft.worterbuch.speedtester
+-privatepackage: net.bbmsoft.worterbuch.speedtester.impl
