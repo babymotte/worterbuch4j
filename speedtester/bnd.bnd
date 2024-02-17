@@ -5,9 +5,10 @@ Bundle-Version: 1.0.0.${tstamp}
 	org.eclipse.jetty.websocket.api,\
 	org.eclipse.jetty.websocket.client,\
 	org.eclipse.jetty.websocket.common,\
+	osgi.core;version='7.0.0',\
 	osgi.annotation;version='7.0.0',\
 	osgi.cmpn;version='7.0.0',\
-	worterbuch-client;version='latest'
+	worterbuch-client;version=latest
 
 javac.source: 17
 javac.target: 17

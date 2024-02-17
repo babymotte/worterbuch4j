@@ -88,12 +88,12 @@ public class Agent {
 
 	private void onDisconnect(final Integer errorCode, final String message) {
 		System.err.println(message);
-		System.exit(1);
+		Utils.shutDown();
 	}
 
 	private void onError(final Throwable e) {
 		e.printStackTrace();
-		System.exit(1);
+		Utils.shutDown();
 	}
 
 }

@@ -202,3 +202,7 @@ jsonSchema2Pojo {
   useOptionalForGetters = false
 
 }
+
+spotbugs {
+	excludeFilter = file("$projectDir/spotbugs-exclude.xml")
+}

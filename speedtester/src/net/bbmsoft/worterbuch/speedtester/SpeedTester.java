@@ -28,6 +28,7 @@ import org.osgi.service.component.annotations.Activate;
 import org.osgi.service.component.annotations.Component;
 
 import net.bbmsoft.worterbuch.speedtester.impl.Agent;
+import net.bbmsoft.worterbuch.speedtester.impl.Utils;
 
 @Component
 public class SpeedTester {
@@ -73,7 +74,7 @@ public class SpeedTester {
 	public void activate() {
 
 		try {
-			final var agents = this.agents != null ? Long.parseLong(this.numAagents) : 1;
+			final var agents = this.numAagents != null ? Long.parseLong(this.numAagents) : 1;
 			final var targetRate = this.targetRate != null ? Long.parseLong(this.targetRate) : 1000;
 
 			for (var i = 0; i < agents; i++) {
@@ -89,7 +90,7 @@ public class SpeedTester {
 			}
 		} catch (final Throwable th) {
 			th.printStackTrace();
-			System.exit(1);
+			Utils.shutDown();
 		}
 	}
 
