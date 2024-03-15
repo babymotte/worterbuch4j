@@ -23,7 +23,6 @@ import java.io.IOException;
 import java.lang.reflect.GenericArrayType;
 import java.lang.reflect.Type;
 import java.net.URI;
-import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
@@ -54,13 +53,12 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.type.TypeFactory;
-import com.google.common.hash.Hashing;
 
 import net.bbmsoft.worterbuch.client.impl.Config;
 import net.bbmsoft.worterbuch.client.impl.TcpClientSocket;
 import net.bbmsoft.worterbuch.client.impl.WrappingExecutor;
 import net.bbmsoft.worterbuch.client.impl.WsClientSocket;
-import net.bbmsoft.worterbuch.client.model.AuthenticationRequest;
+import net.bbmsoft.worterbuch.client.model.AuthorizationRequest;
 import net.bbmsoft.worterbuch.client.model.ClientMessage;
 import net.bbmsoft.worterbuch.client.model.Delete;
 import net.bbmsoft.worterbuch.client.model.Err;
@@ -159,8 +157,8 @@ public class WorterbuchClient implements AutoCloseable {
 
 			client.clientId = welcome.getClientId();
 
-			if (serverInfo.isAuthenticationRequired()) {
-				client.authenticate(authtoken);
+			if (serverInfo.isAuthorizationRequired()) {
+				client.authorize(authtoken);
 			}
 
 			try {
@@ -233,8 +231,8 @@ public class WorterbuchClient implements AutoCloseable {
 
 			client.clientId = welcome.getClientId();
 
-			if (serverInfo.isAuthenticationRequired()) {
-				client.authenticate(authtoken);
+			if (serverInfo.isAuthorizationRequired()) {
+				client.authorize(authtoken);
 			}
 
 			try {
@@ -899,13 +897,11 @@ public class WorterbuchClient implements AutoCloseable {
 		}
 	}
 
-	void authenticate(final Optional<String> authToken) {
+	void authorize(final Optional<String> authToken) {
 		authToken.ifPresent(token -> {
-			final var salted = this.getClientId() + token;
-			final var hashed = Hashing.sha256().hashString(salted, StandardCharsets.UTF_8).toString();
-			final var auth = new AuthenticationRequest(hashed);
+			final var auth = new AuthorizationRequest(token);
 			final var msg = new ClientMessage();
-			msg.setAuthenticationRequest(auth);
+			msg.setAuthorizationRequest(auth);
 			this.sendMessage(msg, this.onError);
 		});
 	}
