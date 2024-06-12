@@ -270,7 +270,6 @@ public class WorterbuchClient implements AutoCloseable {
 
 	private final Logger log = LoggerFactory.getLogger(WorterbuchClient.class);
 	private final AtomicLong transactionId = new AtomicLong();
-	private final AtomicLong lastAckedTransactionId = new AtomicLong();
 	private final ObjectMapper objectMapper = new ObjectMapper();
 
 	private final Map<Long, PendingGet<?>> pendingGets = new HashMap<>();
@@ -308,24 +307,7 @@ public class WorterbuchClient implements AutoCloseable {
 
 	private long acquireTid() {
 		final var nextTid = this.transactionId.incrementAndGet();
-		final var lag = nextTid - this.lastAckedTransactionId.get();
-		if (lag > 200) {
-			while ((nextTid - this.lastAckedTransactionId.get()) > 150) {
-				try {
-					Thread.sleep(0, 1_000);
-				} catch (final InterruptedException e) {
-					Thread.currentThread().interrupt();
-					return nextTid;
-				}
-			}
-		}
 		return nextTid;
-	}
-
-	private Optional<Long> tryAcquireTid() {
-		final var nextTid = this.transactionId.incrementAndGet();
-		final var lag = nextTid - this.lastAckedTransactionId.get();
-		return lag > 200 ? Optional.empty() : Optional.of(nextTid);
 	}
 
 	public <T> long set(final String key, final T value, final Consumer<? super Throwable> onError) {
@@ -334,22 +316,10 @@ public class WorterbuchClient implements AutoCloseable {
 		return tid;
 	}
 
-	public <T> Optional<Long> trySet(final String key, final T value, final Consumer<? super Throwable> onError) {
-		final var maybeTid = this.tryAcquireTid();
-		maybeTid.ifPresent(tid -> this.exec.execute(() -> this.doSet(tid, key, value, onError)));
-		return maybeTid;
-	}
-
 	public <T> long publish(final String key, final T value, final Consumer<? super Throwable> onError) {
 		final var tid = this.acquireTid();
 		this.exec.execute(() -> this.doPublish(tid, key, value, onError));
 		return tid;
-	}
-
-	public <T> Optional<Long> tryPublish(final String key, final T value, final Consumer<? super Throwable> onError) {
-		final var maybeTid = this.tryAcquireTid();
-		maybeTid.ifPresent(tid -> this.exec.execute(() -> this.doPublish(tid, key, value, onError)));
-		return maybeTid;
 	}
 
 	public <T> Future<Optional<T>> get(final String key, final Class<T> type) {
@@ -509,12 +479,6 @@ public class WorterbuchClient implements AutoCloseable {
 		} else {
 			return this.set("$SYS/clients/" + this.getClientId() + "/lastWill", lastWill, onError);
 		}
-	}
-
-	public long getMessageLag() {
-		final var currentTid = this.transactionId.get();
-		final var lastAcked = this.lastAckedTransactionId.get();
-		return currentTid - lastAcked;
 	}
 
 	private <T> void doSet(final long tid, final String key, final T value, final Consumer<? super Throwable> onError) {
@@ -717,11 +681,6 @@ public class WorterbuchClient implements AutoCloseable {
 
 			final var ackContainer = parent.get("ack");
 			if (ackContainer != null) {
-				final var tidContainer = ackContainer.get("transactionId");
-				if (tidContainer != null) {
-					final var tid = tidContainer.asLong();
-					this.lastAckedTransactionId.set(tid);
-				}
 				return;
 			}
 

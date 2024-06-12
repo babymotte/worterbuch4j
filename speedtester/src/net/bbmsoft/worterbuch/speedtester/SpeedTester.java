@@ -39,7 +39,6 @@ public class SpeedTester {
 		public long deltaOffset;
 		public long deltaT;
 		public long lag;
-		public long clientLag;
 
 		public Data(final long lastOffset, final long lastTimestamp, final long deltaOffset, final long deltaT,
 				final long lag) {
@@ -94,7 +93,7 @@ public class SpeedTester {
 		}
 	}
 
-	void onStatusUpdate(final int id, final long sentoffset, final long receivedOffset, final long clientLag) {
+	void onStatusUpdate(final int id, final long sentoffset, final long receivedOffset) {
 		final var now = System.currentTimeMillis();
 		final var lastOffset = this.data[id].lastOffset;
 		this.data[id].lastOffset = receivedOffset;
@@ -103,34 +102,27 @@ public class SpeedTester {
 		this.data[id].lastTimestamp = now;
 		this.data[id].deltaT = now - lastTimestamp;
 		this.data[id].lag = sentoffset - receivedOffset;
-		this.data[id].clientLag = clientLag;
 	}
 
 	private void printStatus() {
 		var totalDeltaT = 0l;
 		var totalDeltaOffsets = 0l;
 		var totalLag = 0l;
-		var totalClientLag = 0l;
 		for (var i = 0; i < this.data.length; i++) {
 			totalDeltaT += this.data[i].deltaT;
 			totalDeltaOffsets += this.data[i].deltaOffset;
 			totalLag += this.data[i].lag;
-			totalClientLag += this.data[i].clientLag;
 		}
 		final var averageDeltaT = ((double) totalDeltaT) / this.data.length;
 		final var totalRate = (long) ((totalDeltaOffsets * 1000) / averageDeltaT);
-		final var averageClientLag = totalClientLag / this.data.length;
 
-		System.err.printf("Receiving rate: %s msg/s, lag: %s msg, avg. client lag: %s%n", totalRate, totalLag,
-				averageClientLag);
+		System.err.printf("Receiving rate: %s msg/s, lag: %s msg%n", totalRate, totalLag);
 	}
 
 	public class StatusListener {
 
-		public void onStatusUpdate(final int id, final long sentoffset, final long receivedOffset,
-				final long clientLag) {
-			SpeedTester.this.executor
-					.execute(() -> SpeedTester.this.onStatusUpdate(id, sentoffset, receivedOffset, clientLag));
+		public void onStatusUpdate(final int id, final long sentoffset, final long receivedOffset) {
+			SpeedTester.this.executor.execute(() -> SpeedTester.this.onStatusUpdate(id, sentoffset, receivedOffset));
 		}
 	}
 }

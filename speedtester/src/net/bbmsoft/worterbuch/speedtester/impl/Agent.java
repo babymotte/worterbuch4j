@@ -83,7 +83,7 @@ public class Agent {
 	}
 
 	private void reportStatus(final WorterbuchClient wb) {
-		this.statusListener.onStatusUpdate(this.id, this.sentOffset, this.receivedOffset, wb.getMessageLag());
+		this.statusListener.onStatusUpdate(this.id, this.sentOffset, this.receivedOffset);
 	}
 
 	private void onDisconnect(final Integer errorCode, final String message) {
