@@ -481,6 +481,10 @@ public class WorterbuchClient implements AutoCloseable {
 		}
 	}
 
+	public long setClientName(final String name) {
+		return this.set("$SYS/clients/" + this.getClientId() + "/clientName", name, this.onError);
+	}
+
 	private <T> void doSet(final long tid, final String key, final T value, final Consumer<? super Throwable> onError) {
 
 		final var set = new Set();
