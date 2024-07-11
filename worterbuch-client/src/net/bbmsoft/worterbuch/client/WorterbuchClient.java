@@ -1029,7 +1029,7 @@ public class WorterbuchClient implements AutoCloseable {
 	}
 
 	private boolean protocolVersionIsSupported(final String protocolVersion) {
-		final var supportedVersions = Arrays.asList("0.7");
+		final var supportedVersions = Arrays.asList("0.8");
 		return supportedVersions.contains(protocolVersion);
 	}
 }
