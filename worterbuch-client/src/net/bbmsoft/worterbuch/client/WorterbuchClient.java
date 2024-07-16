@@ -30,6 +30,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
@@ -85,7 +86,7 @@ import net.bbmsoft.worterbuch.client.pending.Subscription;
 
 public class WorterbuchClient implements AutoCloseable {
 
-	private static volatile WorterbuchClient instance;
+	private static Map<UUID, WorterbuchClient> instances;
 
 	public static WorterbuchClient connect(final URI uri, final BiConsumer<Integer, String> onDisconnect,
 			final Consumer<Throwable> onError) throws InterruptedException, TimeoutException {
@@ -115,9 +116,10 @@ public class WorterbuchClient implements AutoCloseable {
 		final var exec = new WrappingExecutor(
 				Executors.newSingleThreadScheduledExecutor(r -> new Thread(r, "worterbuch-client")), onError);
 		final var queue = new SynchronousQueue<WorterbuchClient>();
+		final var ticket = UUID.randomUUID();
 
 		exec.execute(() -> WorterbuchClient.initWorterbuchClient(uri, authToken, onDisconnect, onError, exec, queue,
-				Objects.requireNonNull(callbackExecutor)));
+				ticket, Objects.requireNonNull(callbackExecutor)));
 
 		final var wb = queue.poll(Config.CONNECT_TIMEOUT, TimeUnit.SECONDS);
 		if (wb == null) {
@@ -128,14 +130,14 @@ public class WorterbuchClient implements AutoCloseable {
 
 	private static void initWorterbuchClient(final URI uri, final Optional<String> authtoken,
 			final BiConsumer<Integer, String> onDisconnect, final Consumer<? super Throwable> onError,
-			final ScheduledExecutorService exec, final SynchronousQueue<WorterbuchClient> queue,
+			final ScheduledExecutorService exec, final SynchronousQueue<WorterbuchClient> queue, final UUID ticket,
 			final Executor callbackExecutor) {
 
 		if (uri.getScheme().equals("tcp")) {
-			WorterbuchClient.initTcpWorterbuchClient(uri, authtoken, onDisconnect, onError, exec, queue,
+			WorterbuchClient.initTcpWorterbuchClient(uri, authtoken, onDisconnect, onError, exec, queue, ticket,
 					callbackExecutor);
 		} else {
-			WorterbuchClient.initWsWorterbuchClient(uri, authtoken, onDisconnect, onError, exec, queue,
+			WorterbuchClient.initWsWorterbuchClient(uri, authtoken, onDisconnect, onError, exec, queue, ticket,
 					callbackExecutor);
 		}
 
@@ -143,7 +145,7 @@ public class WorterbuchClient implements AutoCloseable {
 
 	private static void initWsWorterbuchClient(final URI uri, final Optional<String> authtoken,
 			final BiConsumer<Integer, String> onDisconnect, final Consumer<? super Throwable> onError,
-			final ScheduledExecutorService exec, final SynchronousQueue<WorterbuchClient> queue,
+			final ScheduledExecutorService exec, final SynchronousQueue<WorterbuchClient> queue, final UUID ticket,
 			final Executor callbackExecutor) {
 
 		final BiConsumer<Welcome, WorterbuchClient> onWelcome = (welcome, client) -> {
@@ -162,7 +164,7 @@ public class WorterbuchClient implements AutoCloseable {
 			}
 
 			try {
-				queue.offer(WorterbuchClient.instance, Config.CONNECT_TIMEOUT, TimeUnit.SECONDS);
+				queue.offer(WorterbuchClient.instances.remove(ticket), Config.CONNECT_TIMEOUT, TimeUnit.SECONDS);
 			} catch (final InterruptedException e) {
 				onError.accept(
 						new WorterbuchException("Client thread interrupted while offreing wortebruch client", e));
@@ -209,7 +211,7 @@ public class WorterbuchClient implements AutoCloseable {
 
 			wb.exec.scheduleAtFixedRate(wb::checkKeepalive, 0, 1, TimeUnit.SECONDS);
 
-			WorterbuchClient.instance = wb;
+			WorterbuchClient.instances.put(ticket, wb);
 		} catch (final Exception e) {
 			onError.accept(new WorterbuchException("Could not start client.", e));
 		}
@@ -217,7 +219,7 @@ public class WorterbuchClient implements AutoCloseable {
 
 	private static void initTcpWorterbuchClient(final URI uri, final Optional<String> authtoken,
 			final BiConsumer<Integer, String> onDisconnect, final Consumer<? super Throwable> onError,
-			final ScheduledExecutorService exec, final SynchronousQueue<WorterbuchClient> queue,
+			final ScheduledExecutorService exec, final SynchronousQueue<WorterbuchClient> queue, final UUID ticket,
 			final Executor callbackExecutor) {
 
 		final BiConsumer<Welcome, WorterbuchClient> onWelcome = (welcome, client) -> {
@@ -236,7 +238,7 @@ public class WorterbuchClient implements AutoCloseable {
 			}
 
 			try {
-				queue.offer(WorterbuchClient.instance, Config.CONNECT_TIMEOUT, TimeUnit.SECONDS);
+				queue.offer(WorterbuchClient.instances.remove(ticket), Config.CONNECT_TIMEOUT, TimeUnit.SECONDS);
 			} catch (final InterruptedException e) {
 				onError.accept(
 						new WorterbuchException("Client thread interrupted while offreing wortebruch client", e));
@@ -254,7 +256,7 @@ public class WorterbuchClient implements AutoCloseable {
 
 			wb.exec.scheduleAtFixedRate(wb::checkKeepalive, 0, 1, TimeUnit.SECONDS);
 
-			WorterbuchClient.instance = wb;
+			WorterbuchClient.instances.put(ticket, wb);
 
 		} catch (final IOException e) {
 			onError.accept(new WorterbuchException("Could not start client.", e));
