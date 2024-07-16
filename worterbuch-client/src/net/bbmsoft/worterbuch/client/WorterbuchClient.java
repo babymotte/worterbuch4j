@@ -32,6 +32,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
@@ -86,7 +87,7 @@ import net.bbmsoft.worterbuch.client.pending.Subscription;
 
 public class WorterbuchClient implements AutoCloseable {
 
-	private static Map<UUID, WorterbuchClient> instances;
+	private static Map<UUID, WorterbuchClient> instances = new ConcurrentHashMap<>();
 
 	public static WorterbuchClient connect(final URI uri, final BiConsumer<Integer, String> onDisconnect,
 			final Consumer<Throwable> onError) throws InterruptedException, TimeoutException {
