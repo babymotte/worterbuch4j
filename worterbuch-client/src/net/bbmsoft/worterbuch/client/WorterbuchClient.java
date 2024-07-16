@@ -68,6 +68,7 @@ import net.bbmsoft.worterbuch.client.model.Get;
 import net.bbmsoft.worterbuch.client.model.Ls;
 import net.bbmsoft.worterbuch.client.model.PDelete;
 import net.bbmsoft.worterbuch.client.model.PGet;
+import net.bbmsoft.worterbuch.client.model.PLs;
 import net.bbmsoft.worterbuch.client.model.PSubscribe;
 import net.bbmsoft.worterbuch.client.model.Publish;
 import net.bbmsoft.worterbuch.client.model.Set;
@@ -411,6 +412,19 @@ public class WorterbuchClient implements AutoCloseable {
 		return tid;
 	}
 
+	public Future<List<String>> pLs(final String parentPattern) {
+		final var fut = new CompletableFuture<List<String>>();
+		this.pLs(parentPattern, val -> fut.complete(val), e -> fut.completeExceptionally(e));
+		return fut;
+	}
+
+	public long pLs(final String parentPattern, final Consumer<List<String>> callback,
+			final Consumer<? super Throwable> onError) {
+		final var tid = this.acquireTid();
+		this.exec.execute(() -> this.doPLs(tid, parentPattern, callback, onError));
+		return tid;
+	}
+
 	public <T> long subscribe(final String key, final boolean unique, final boolean liveOnly, final Class<T> type,
 			final Consumer<Optional<T>> callback, final Consumer<? super Throwable> onError) {
 		final var tid = this.acquireTid();
@@ -583,6 +597,20 @@ public class WorterbuchClient implements AutoCloseable {
 		ls.setParent(parent);
 		final var msg = new ClientMessage();
 		msg.setLs(ls);
+
+		this.sendMessage(msg, onError);
+	}
+
+	private void doPLs(final long tid, final String parentPattern, final Consumer<List<String>> callback,
+			final Consumer<? super Throwable> onError) {
+
+		this.pendingLsStates.put(tid, new PendingLsState(callback));
+
+		final var pLs = new PLs();
+		pLs.setTransactionId(tid);
+		pLs.setParentPattern(parentPattern);
+		final var msg = new ClientMessage();
+		msg.setpLs(pLs);
 
 		this.sendMessage(msg, onError);
 	}
@@ -1032,7 +1060,7 @@ public class WorterbuchClient implements AutoCloseable {
 	}
 
 	private boolean protocolVersionIsSupported(final String protocolVersion) {
-		final var supportedVersions = Arrays.asList("0.8");
+		final var supportedVersions = Arrays.asList("0.9");
 		return supportedVersions.contains(protocolVersion);
 	}
 }

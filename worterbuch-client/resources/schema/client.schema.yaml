@@ -214,6 +214,40 @@ properties:
     required:
       - transactionId
       - parent
+  pLs:
+    description: A message sent by a client to list all direct sub-key segments of all partial keys matching the provided pattern
+    type: object
+    properties:
+      transactionId:
+        description: A unique transaction ID
+        type: integer
+        format: u64
+      parentPattern:
+        description: A pattern describing the parent partial keys for which to list sub-key segments
+        type:
+          - "null"
+          - string
+    additionalProperties: false
+    required:
+      - transactionId
+      - parentPattern
+  # pSubscribeLs:
+  #   description: A message sent by a client to request a subscription to all direct sub-key segments of all partial keys matching the provided pattern
+  #   type: object
+  #   properties:
+  #     transactionId:
+  #       description: A unique transaction ID
+  #       type: integer
+  #       format: u64
+  #     parentPattern:
+  #       description: A pattern describing the parent partial keys for which to list sub-key segments
+  #       type:
+  #         - "null"
+  #         - string
+  #   additionalProperties: false
+  #   required:
+  #     - transactionId
+  #     - parentPattern
   unsubscribeLs:
     description: A message sent by a client to request the cancellation of an ls subscription
     type: object
@@ -225,6 +259,23 @@ properties:
     additionalProperties: false
     required:
       - transactionId
+  # transform:
+  #   description: A message sent by the client to set up a server-internal state transformer
+  #   type: object
+  #   properties:
+  #     transactionId:
+  #       description: A unique transaction ID
+  #       type: integer
+  #       format: u64
+  #     key:
+  #       description: The key under which the transformed state will be stored
+  #       type: string
+  #     template:
+  #       description: A JSON object describing the structure of the transformed state. The template contains placeholder keys that will be replaced with the actual value of those keys
+  #       type: object
+  #   additionalProperties: false
+  #   required:
+  #     - transactionId
 additionalProperties: false
 oneOf:
   - required:
@@ -250,9 +301,15 @@ oneOf:
   - required:
       - ls
   - required:
+      - pLs
+  - required:
       - subscribeLs
+  # - required:
+  #     - pSubscribeLs
   - required:
       - unsubscribeLs
+  # - required:
+  #     - transform
 components:
   schemas:
     ProtocolVersion:

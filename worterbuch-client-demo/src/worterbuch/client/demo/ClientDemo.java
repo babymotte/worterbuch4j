@@ -104,6 +104,8 @@ public class ClientDemo {
 		final var wb = authToken != null ? WorterbuchClient.connect(uri, authToken, this::exit, this::error)
 				: WorterbuchClient.connect(uri, this::exit, this::error);
 
+		wb.pLs("$SYS/?/?", System.err::println, System.err::println);
+
 		wb.subscribeArray("testapp/state/collections/asyncList", true, true, HelloWorld.class, this::printOptional,
 				System.err::println);
 
