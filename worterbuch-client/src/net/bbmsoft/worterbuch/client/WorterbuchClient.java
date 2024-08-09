@@ -388,15 +388,23 @@ public class WorterbuchClient implements AutoCloseable {
 		return fut;
 	}
 
+	public Future<Void> pDelete(final String pattern) {
+		final var fut = new CompletableFuture<Void>();
+		this.pDelete(pattern, () -> fut.complete(null), e -> fut.completeExceptionally(e));
+		return fut;
+	}
+
 	public <T> long pDelete(final String pattern, final Class<T> type, final Consumer<List<KeyValuePair<T>>> callback,
 			final Consumer<? super Throwable> onError) {
 		final var tid = this.acquireTid();
-		this.exec.execute(() -> this.doPDelete(tid, pattern, type, callback, onError));
+		this.exec.execute(() -> this.doPDelete(tid, pattern, false, type, callback, onError));
 		return tid;
 	}
 
-	public long pDelete(final String pattern, final Consumer<? super Throwable> onError) {
-		return this.pDelete(pattern, null, null, onError);
+	public long pDelete(final String pattern, final Runnable callback, final Consumer<? super Throwable> onError) {
+		final var tid = this.acquireTid();
+		this.exec.execute(() -> this.doPDelete(tid, pattern, true, Void.class, val -> callback.run(), onError));
+		return tid;
 	}
 
 	public Future<List<String>> ls(final String parent) {
@@ -571,7 +579,7 @@ public class WorterbuchClient implements AutoCloseable {
 		this.sendMessage(msg, onError);
 	}
 
-	private <T> void doPDelete(final long tid, final String pattern, final Class<T> type,
+	private <T> void doPDelete(final long tid, final String pattern, final boolean quiet, final Class<T> type,
 			final Consumer<List<KeyValuePair<T>>> callback, final Consumer<? super Throwable> onError) {
 
 		if (callback != null) {
@@ -581,6 +589,7 @@ public class WorterbuchClient implements AutoCloseable {
 		final var pdel = new PDelete();
 		pdel.setTransactionId(tid);
 		pdel.setRequestPattern(pattern);
+		pdel.setQuiet(quiet);
 		final var msg = new ClientMessage();
 		msg.setpDelete(pdel);
 
