@@ -25,7 +25,6 @@ import java.lang.reflect.Type;
 import java.net.URI;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -276,14 +275,14 @@ public class WorterbuchClient implements AutoCloseable {
 	private final AtomicLong transactionId = new AtomicLong();
 	private final ObjectMapper objectMapper = new ObjectMapper();
 
-	private final Map<Long, PendingGet<?>> pendingGets = new HashMap<>();
-	private final Map<Long, PendingPGet<?>> pendingPGets = new HashMap<>();
-	private final Map<Long, PendingDelete<?>> pendingDeletes = new HashMap<>();
-	private final Map<Long, PendingPDelete<?>> pendingPDeletes = new HashMap<>();
-	private final Map<Long, PendingLsState> pendingLsStates = new HashMap<>();
-	private final Map<Long, Subscription<?>> subscriptions = new HashMap<>();
-	private final Map<Long, PSubscription<?>> pSubscriptions = new HashMap<>();
-	private final Map<Long, LsSubscription> lsSubscriptions = new HashMap<>();
+	private final Map<Long, PendingGet<?>> pendingGets = new ConcurrentHashMap<>();
+	private final Map<Long, PendingPGet<?>> pendingPGets = new ConcurrentHashMap<>();
+	private final Map<Long, PendingDelete<?>> pendingDeletes = new ConcurrentHashMap<>();
+	private final Map<Long, PendingPDelete<?>> pendingPDeletes = new ConcurrentHashMap<>();
+	private final Map<Long, PendingLsState> pendingLsStates = new ConcurrentHashMap<>();
+	private final Map<Long, Subscription<?>> subscriptions = new ConcurrentHashMap<>();
+	private final Map<Long, PSubscription<?>> pSubscriptions = new ConcurrentHashMap<>();
+	private final Map<Long, LsSubscription> lsSubscriptions = new ConcurrentHashMap<>();
 
 	private long lastKeepaliveSent = System.currentTimeMillis();
 	private long lastKeepaliveReceived = System.currentTimeMillis();
