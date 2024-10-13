@@ -39,7 +39,7 @@ import net.bbmsoft.worterbuch.client.WorterbuchClient;
  * Simultaneous writes from both multiple threads or multiple JVMs will lead to
  * data corruption and/or lost updates, however updating the map from one JVM
  * while reading it from another is safe.
- * 
+ *
  * @param <T> the type of the Map's values.
  */
 public class AsyncWorterbuchMap<T> implements Map<String, T> {

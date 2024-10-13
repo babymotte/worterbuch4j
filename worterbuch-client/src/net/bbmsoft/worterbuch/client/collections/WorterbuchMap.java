@@ -57,7 +57,7 @@ import net.bbmsoft.worterbuch.client.WorterbuchClient;
  * </code> may produce unexpected results because another client may put data to
  * "key" after {@code map.containsKey("key")} but before
  * {@code map.put("key", "value");}
- * 
+ *
  * @param <T> the type of the Map's values.
  */
 public class WorterbuchMap<T> implements Map<String, T> {
@@ -233,36 +233,37 @@ public class WorterbuchMap<T> implements Map<String, T> {
 		};
 	}
 
-	String fullKey(Object key) {
+	String fullKey(final Object key) {
 		return Utils.fullKey(key, this.rootKey);
 	}
 
-	String trimKey(String fullKey) {
+	String trimKey(final String fullKey) {
 		return Utils.trimKey(fullKey, this.rootKey);
 	}
 
-	public long addListener(BiConsumer<String, T> listener, boolean unique, boolean liveOnly) {
+	public long addListener(final BiConsumer<String, T> listener, final boolean unique, final boolean liveOnly) {
 		return this.addListener(listener, unique, liveOnly, null);
 	}
 
-	public long addListener(BiConsumer<String, T> listener, boolean unique, boolean liveOnly, Executor executor) {
+	public long addListener(final BiConsumer<String, T> listener, final boolean unique, final boolean liveOnly,
+			final Executor executor) {
 
-		Executor theExecutor = executor != null ? executor : Runnable::run;
+		final var theExecutor = executor != null ? executor : (Executor) Runnable::run;
 
-		String key = this.rootKey + "/?";
-		var tid = this.wbClient.pSubscribe(key, unique, liveOnly, Optional.of(1L), this.valueType, e -> {
+		final var key = this.rootKey + "/?";
+		final var tid = this.wbClient.pSubscribe(key, unique, liveOnly, Optional.of(1L), this.valueType, e -> {
 			if (e.keyValuePairs != null) {
 				e.keyValuePairs.forEach(kvp -> {
-					var fullKey = kvp.getKey();
-					var value = kvp.getValue();
-					var trimmedKey = this.trimKey(fullKey);
+					final var fullKey = kvp.getKey();
+					final var value = kvp.getValue();
+					final var trimmedKey = this.trimKey(fullKey);
 					theExecutor.execute(() -> listener.accept(trimmedKey, value));
 				});
 			}
 			if (e.deleted != null) {
 				e.deleted.forEach(kvp -> {
-					var fullKey = kvp.getKey();
-					var trimmedKey = this.trimKey(fullKey);
+					final var fullKey = kvp.getKey();
+					final var trimmedKey = this.trimKey(fullKey);
 					theExecutor.execute(() -> listener.accept(trimmedKey, null));
 				});
 			}
@@ -270,7 +271,7 @@ public class WorterbuchMap<T> implements Map<String, T> {
 		return tid;
 	}
 
-	public void removeListener(long transactionId) {
+	public void removeListener(final long transactionId) {
 		this.wbClient.unsubscribeLs(transactionId, this.errorHandler);
 	}
 }

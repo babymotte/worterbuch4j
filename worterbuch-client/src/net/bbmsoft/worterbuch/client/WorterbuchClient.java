@@ -23,7 +23,6 @@ import java.io.IOException;
 import java.lang.reflect.GenericArrayType;
 import java.lang.reflect.Type;
 import java.net.URI;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -56,6 +55,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.type.TypeFactory;
 
 import net.bbmsoft.worterbuch.client.impl.Config;
+import net.bbmsoft.worterbuch.client.impl.Constants;
 import net.bbmsoft.worterbuch.client.impl.TcpClientSocket;
 import net.bbmsoft.worterbuch.client.impl.WrappingExecutor;
 import net.bbmsoft.worterbuch.client.impl.WsClientSocket;
@@ -70,6 +70,8 @@ import net.bbmsoft.worterbuch.client.model.PGet;
 import net.bbmsoft.worterbuch.client.model.PLs;
 import net.bbmsoft.worterbuch.client.model.PSubscribe;
 import net.bbmsoft.worterbuch.client.model.Publish;
+import net.bbmsoft.worterbuch.client.model.SPub;
+import net.bbmsoft.worterbuch.client.model.SPubInit;
 import net.bbmsoft.worterbuch.client.model.Set;
 import net.bbmsoft.worterbuch.client.model.Subscribe;
 import net.bbmsoft.worterbuch.client.model.SubscribeLs;
@@ -83,6 +85,7 @@ import net.bbmsoft.worterbuch.client.pending.PendingGet;
 import net.bbmsoft.worterbuch.client.pending.PendingLsState;
 import net.bbmsoft.worterbuch.client.pending.PendingPDelete;
 import net.bbmsoft.worterbuch.client.pending.PendingPGet;
+import net.bbmsoft.worterbuch.client.pending.PendingSPubInit;
 import net.bbmsoft.worterbuch.client.pending.Subscription;
 
 public class WorterbuchClient implements AutoCloseable {
@@ -277,6 +280,7 @@ public class WorterbuchClient implements AutoCloseable {
 
 	private final Map<Long, PendingGet<?>> pendingGets = new ConcurrentHashMap<>();
 	private final Map<Long, PendingPGet<?>> pendingPGets = new ConcurrentHashMap<>();
+	private final Map<Long, PendingSPubInit<?>> pendingSPubInits = new ConcurrentHashMap<>();
 	private final Map<Long, PendingDelete<?>> pendingDeletes = new ConcurrentHashMap<>();
 	private final Map<Long, PendingPDelete<?>> pendingPDeletes = new ConcurrentHashMap<>();
 	private final Map<Long, PendingLsState> pendingLsStates = new ConcurrentHashMap<>();
@@ -323,6 +327,36 @@ public class WorterbuchClient implements AutoCloseable {
 		final var tid = this.acquireTid();
 		this.exec.execute(() -> this.doPublish(tid, key, value, onError));
 		return tid;
+	}
+
+	public <T> Future<Long> initPubStream(final String key, final Consumer<? super Throwable> onError) {
+		final var fut = new CompletableFuture<Long>();
+		final var tid = this.acquireTid();
+		this.exec.execute(() -> this.doInitPubStream(tid, key, res -> {
+			if (res) {
+				fut.complete(tid);
+			} else {
+				fut.cancel(false);
+			}
+		}, onError));
+		return fut;
+	}
+
+	public <T> long initPubStream(final String key, final Consumer<Long> callback,
+			final Consumer<? super Throwable> onError) {
+		final var tid = this.acquireTid();
+		this.exec.execute(() -> this.doInitPubStream(tid, key, res -> {
+			if (res) {
+				callback.accept(tid);
+			} else {
+				callback.accept(-1L);
+			}
+		}, onError));
+		return tid;
+	}
+
+	public <T> void streamPub(final long transactionId, final T value, final Consumer<? super Throwable> onError) {
+		this.exec.execute(() -> this.doStreamPub(transactionId, value, onError));
 	}
 
 	public <T> Future<Optional<T>> get(final String key, final Class<T> type) {
@@ -534,6 +568,31 @@ public class WorterbuchClient implements AutoCloseable {
 		this.sendMessage(msg, onError);
 	}
 
+	private <T> void doInitPubStream(final long tid, final String key, final Consumer<Boolean> callback,
+			final Consumer<? super Throwable> onError) {
+
+		this.pendingSPubInits.put(tid, new PendingSPubInit<>(callback));
+
+		final var sPubInit = new SPubInit();
+		sPubInit.setTransactionId(tid);
+		sPubInit.setKey(key);
+		final var msg = new ClientMessage();
+		msg.setsPubInit(sPubInit);
+
+		this.sendMessage(msg, onError);
+	}
+
+	private <T> void doStreamPub(final long tid, final T value, final Consumer<? super Throwable> onError) {
+
+		final var sPub = new SPub();
+		sPub.setTransactionId(tid);
+		sPub.setValue(value);
+		final var msg = new ClientMessage();
+		msg.setsPub(sPub);
+
+		this.sendMessage(msg, onError);
+	}
+
 	private <T> void doGet(final long tid, final String key, final Type type, final Consumer<Optional<T>> callback,
 			final Consumer<? super Throwable> onError) {
 
@@ -724,6 +783,14 @@ public class WorterbuchClient implements AutoCloseable {
 
 			final var ackContainer = parent.get("ack");
 			if (ackContainer != null) {
+
+				final var transactionId = ackContainer.get("transactionId").asLong();
+
+				final var pendingSPubInit = this.pendingSPubInits.remove(transactionId);
+				if (pendingSPubInit != null) {
+					callbackExecutor.execute(() -> pendingSPubInit.callback.accept(false));
+				}
+
 				return;
 			}
 
@@ -764,6 +831,12 @@ public class WorterbuchClient implements AutoCloseable {
 						callbackExecutor.execute(() -> pendingLs.callback.accept(Collections.emptyList()));
 					}
 
+					final var pendingSPubinit = this.pendingSPubInits.remove(transactionId);
+					if (pendingSPubinit != null) {
+						handled = true;
+						callbackExecutor.execute(() -> pendingSPubinit.callback.accept(false));
+					}
+
 					if (!handled) {
 						this.log.error("Received error message from server: '{}'", errContainer);
 					}
@@ -793,20 +866,19 @@ public class WorterbuchClient implements AutoCloseable {
 			if (stateContainer != null) {
 				final var transactionId = stateContainer.get("transactionId").asLong();
 
-				final var keyValueContainer = stateContainer.get("keyValue");
+				final var valueContainer = stateContainer.get("value");
 				final var deletedContainer = stateContainer.get("deleted");
 
 				final var typeFactory = this.objectMapper.getTypeFactory();
 
 				final var pendingGet = this.pendingGets.remove(transactionId);
-				this.deliverPendingGet(pendingGet, keyValueContainer, typeFactory, callbackExecutor);
+				this.deliverPendingGet(pendingGet, valueContainer, typeFactory, callbackExecutor);
 
 				final var pendingDelete = this.pendingDeletes.remove(transactionId);
 				this.deliverPendingDelete(pendingDelete, deletedContainer, typeFactory, callbackExecutor);
 
 				final var subscription = this.subscriptions.get(transactionId);
-				this.deliverSubscription(subscription, keyValueContainer, deletedContainer, typeFactory,
-						callbackExecutor);
+				this.deliverSubscription(subscription, valueContainer, deletedContainer, typeFactory, callbackExecutor);
 
 				return;
 			}
@@ -916,17 +988,16 @@ public class WorterbuchClient implements AutoCloseable {
 		return message.isBlank();
 	}
 
-	private <T> void deliverPendingGet(final PendingGet<T> pendingGet, final JsonNode keyValueContainer,
+	private <T> void deliverPendingGet(final PendingGet<T> pendingGet, final JsonNode valueContainer,
 			final TypeFactory typeFactory, final Executor callbackExecutor) {
 		if (pendingGet != null) {
-			if (keyValueContainer != null) {
-				final var kvpType = typeFactory.constructParametricType(KeyValuePair.class,
-						typeFactory.constructType(pendingGet.type));
+			if (valueContainer != null) {
+				final var kvpType = typeFactory.constructType(pendingGet.type);
 				try {
-					final KeyValuePair<T> kvp = this.objectMapper.readValue(keyValueContainer.toString(), kvpType);
-					callbackExecutor.execute(() -> pendingGet.callback.accept(Optional.ofNullable(kvp.getValue())));
+					final var value = this.objectMapper.<T>readValue(valueContainer.toString(), kvpType);
+					callbackExecutor.execute(() -> pendingGet.callback.accept(Optional.ofNullable(value)));
 				} catch (final JsonProcessingException e) {
-					this.log.error("Could not deserialize JSON '{}': {}", keyValueContainer, e.getMessage());
+					this.log.error("Could not deserialize JSON '{}': {}", valueContainer, e.getMessage());
 					callbackExecutor.execute(() -> pendingGet.callback.accept(Optional.empty()));
 				}
 			} else {
@@ -939,10 +1010,10 @@ public class WorterbuchClient implements AutoCloseable {
 			final TypeFactory typeFactory, final Executor callbackExecutor) {
 		if (pendingDelete != null) {
 			if (deletedContainer != null) {
-				final var kvpType = typeFactory.constructParametricType(KeyValuePair.class, pendingDelete.type);
+				final var kvpType = typeFactory.constructType(pendingDelete.type);
 				try {
-					final KeyValuePair<T> kvp = this.objectMapper.readValue(deletedContainer.toString(), kvpType);
-					callbackExecutor.execute(() -> pendingDelete.callback.accept(Optional.ofNullable(kvp.getValue())));
+					final var value = this.objectMapper.<T>readValue(deletedContainer.toString(), kvpType);
+					callbackExecutor.execute(() -> pendingDelete.callback.accept(Optional.ofNullable(value)));
 				} catch (final JsonProcessingException e) {
 					this.log.error("Could not deserialize JSON '{}': {}", deletedContainer, e.getMessage());
 					callbackExecutor.execute(() -> pendingDelete.callback.accept(Optional.empty()));
@@ -953,17 +1024,16 @@ public class WorterbuchClient implements AutoCloseable {
 		}
 	}
 
-	private <T> void deliverSubscription(final Subscription<T> subscription, final JsonNode keyValueContainer,
+	private <T> void deliverSubscription(final Subscription<T> subscription, final JsonNode valueContainer,
 			final JsonNode deletedContainer, final TypeFactory typeFactory, final Executor callbackExecutor) {
 		if (subscription != null) {
-			final var kvpType = typeFactory.constructParametricType(KeyValuePair.class,
-					typeFactory.constructType(subscription.type));
-			if (keyValueContainer != null) {
+			final var kvpType = typeFactory.constructType(subscription.type);
+			if (valueContainer != null) {
 				try {
-					final KeyValuePair<T> kvp = this.objectMapper.readValue(keyValueContainer.toString(), kvpType);
-					callbackExecutor.execute(() -> subscription.callback.accept(Optional.ofNullable(kvp.getValue())));
+					final var value = this.objectMapper.<T>readValue(valueContainer.toString(), kvpType);
+					callbackExecutor.execute(() -> subscription.callback.accept(Optional.ofNullable(value)));
 				} catch (final JsonProcessingException e) {
-					this.log.error("Could not deserialize JSON '{}': {}", keyValueContainer, e.getMessage());
+					this.log.error("Could not deserialize JSON '{}': {}", valueContainer, e.getMessage());
 					callbackExecutor.execute(() -> subscription.callback.accept(Optional.empty()));
 				}
 			} else {
@@ -1068,7 +1138,6 @@ public class WorterbuchClient implements AutoCloseable {
 	}
 
 	private boolean protocolVersionIsSupported(final String protocolVersion) {
-		final var supportedVersions = Arrays.asList("0.9");
-		return supportedVersions.contains(protocolVersion);
+		return Constants.SUPPORTED_PROTOCOL_VERSIONS.contains(protocolVersion);
 	}
 }
