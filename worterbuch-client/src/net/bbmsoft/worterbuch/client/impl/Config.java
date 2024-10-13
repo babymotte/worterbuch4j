@@ -26,6 +26,8 @@ public class Config {
 
 	public static final int KEEPALIVE_TIMEOUT = Config.getIntValue("WORTERBUCH_KEEPALIVE_TIMEOUT", 5) * 1_000;
 	public static final int CONNECT_TIMEOUT = Config.getIntValue("WORTERBUCH_CONNECT_TIMEOUT", 5);
+	public static final int SEND_TIMEOUT = Config.getIntValue("WORTERBUCH_SEND_TIMEOUT", 5);
+	public static final int CHANNEL_BUFFER_SIZE = Config.getIntValue("WORTERBUCH_CHANNEL_BUFFER_SIZE", 1);
 
 	public static int getIntValue(final String key, final int defaultValue) {
 		final var stringValue = Config.getValue(key);

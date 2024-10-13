@@ -23,6 +23,6 @@ import java.io.IOException;
 
 public interface ClientSocket extends AutoCloseable {
 
-	void sendString(String json) throws IOException;
+	void sendString(String json) throws IOException, InterruptedException;
 
 }

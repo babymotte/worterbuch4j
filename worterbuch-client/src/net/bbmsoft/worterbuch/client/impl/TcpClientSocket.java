@@ -19,14 +19,19 @@
 
 package net.bbmsoft.worterbuch.client.impl;
 
-import java.io.BufferedReader;
 import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.io.PrintStream;
-import java.net.Socket;
+import java.net.InetSocketAddress;
+import java.net.StandardSocketOptions;
 import java.net.URI;
+import java.nio.ByteBuffer;
+import java.nio.channels.AsynchronousSocketChannel;
+import java.nio.channels.CompletionHandler;
 import java.nio.charset.StandardCharsets;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
@@ -39,31 +44,58 @@ public class TcpClientSocket implements ClientSocket {
 
 	private final Logger log = LoggerFactory.getLogger(this.getClass());
 
-	private final Socket socket;
-	private final PrintStream outs;
-	private final InputStream ins;
-	private Thread receiveThread;
+	private final URI uri;
+	private final AsynchronousSocketChannel socket;
 	private final BiConsumer<Integer, String> onDisconnect;
 	private final Consumer<? super Throwable> onError;
+	private final LinkedBlockingQueue<String> outs;
+	private final AtomicBoolean disconnected;
+
+	private Thread receiveThread;
+	private Thread transmitThread;
 
 	public TcpClientSocket(final URI uri, final BiConsumer<Integer, String> onDisconnect,
-			final Consumer<? super Throwable> onError) throws IOException {
+			final Consumer<? super Throwable> onError, final int bufferSize) throws IOException {
 
-		this.socket = new Socket(uri.getHost(), uri.getPort());
+		this.uri = uri;
+		this.socket = AsynchronousSocketChannel.open();
 		this.onDisconnect = onDisconnect;
 		this.onError = onError;
-		this.outs = new PrintStream(this.socket.getOutputStream(), true, StandardCharsets.UTF_8);
-		this.ins = this.socket.getInputStream();
+		this.outs = new LinkedBlockingQueue<>(bufferSize);
+		this.disconnected = new AtomicBoolean();
+
+		this.socket.setOption(StandardSocketOptions.SO_KEEPALIVE, true);
+		this.socket.setOption(StandardSocketOptions.TCP_NODELAY, true);
+
 	}
 
-	public void open(final Consumer<String> messageConsumer) {
-		this.receiveThread = new Thread(() -> this.receiveLoop(messageConsumer), "wortebruch-client-tcp-rx");
-		this.receiveThread.start();
+	public void open(final Consumer<String> messageConsumer, final long writeTimeout, final TimeUnit timeoutUnit) {
+		this.socket.connect(new InetSocketAddress(this.uri.getHost(), this.uri.getPort()), this.socket,
+				new CompletionHandler<Void, AsynchronousSocketChannel>() {
+					@Override
+					public void completed(final Void result, final AsynchronousSocketChannel channel) {
+						TcpClientSocket.this.receiveThread = new Thread(() -> {
+							TcpClientSocket.this.receiveLoop(messageConsumer);
+						}, "wortebruch-client-tcp-rx");
+						TcpClientSocket.this.receiveThread.start();
+						TcpClientSocket.this.transmitThread = new Thread(() -> {
+							TcpClientSocket.this.transmitLoop(writeTimeout, timeoutUnit);
+						}, "wortebruch-client-tcp-tx");
+						TcpClientSocket.this.transmitThread.start();
+					}
+
+					@Override
+					public void failed(final Throwable exc, final AsynchronousSocketChannel channel) {
+						TcpClientSocket.this.onError.accept(exc);
+					}
+				});
 	}
 
 	@Override
-	public void sendString(final String json) throws IOException {
-		this.outs.println(json);
+	public void sendString(final String json) throws IOException, InterruptedException {
+
+		this.outs.put(json);
+
 	}
 
 	@Override
@@ -71,40 +103,164 @@ public class TcpClientSocket implements ClientSocket {
 		if (this.receiveThread != null) {
 			this.receiveThread.interrupt();
 		}
-
-//		try {
-//			this.ins.close();
-//		} catch (final IOException e) {
-//			this.log.error("Error closing socket input stream:", e);
-//		}
-
-//		this.outs.close();
+		if (this.transmitThread != null) {
+			this.transmitThread.interrupt();
+		}
 
 		try {
 			this.socket.close();
 		} catch (final IOException e) {
-			this.log.error("Error closing socket:", e);
+			this.onError.accept(e);
 		}
 	}
 
 	private void receiveLoop(final Consumer<String> messageConsumer) {
 
-		try (var reader = new BufferedReader(new InputStreamReader(this.ins, StandardCharsets.UTF_8));) {
-			for (var line = reader.readLine(); line != null; line = reader.readLine()) {
-				messageConsumer.accept(line);
+		final var buf = ByteBuffer.allocate(1024);
+		final var sb = new Ref<StringBuilder>();
+		sb.item = new StringBuilder();
+		final var errorCode = new Ref<Integer>();
+		final var message = new Ref<String>();
+
+		var alreadyDisconnected = false;
+
+		while (!Thread.currentThread().isInterrupted() && !this.disconnected.get()) {
+
+			buf.clear();
+
+			Integer read;
+			try {
+				read = this.socket.read(buf).get();
+			} catch (final InterruptedException e) {
+				alreadyDisconnected = this.interrupted(errorCode, message, e);
+				break;
+			} catch (final ExecutionException e) {
+				alreadyDisconnected = this.socketReadException(errorCode, message, e.getCause());
+				break;
 			}
-		} catch (final IOException e) {
-			if (Thread.currentThread().isInterrupted()) {
-				this.log.debug("TCP socket was closed.");
-			} else {
-				this.onError.accept(e);
+
+			if (read == -1) {
+				alreadyDisconnected = this.disconnected.getAndSet(true);
+				errorCode.item = 0;
+				message.item = "stream closed";
+				break;
 			}
-		} finally {
-			if (!Thread.currentThread().isInterrupted()) {
-				this.onDisconnect.accept(1, "Receive loop closed.");
+
+			var str = new String(buf.array(), 0, read, StandardCharsets.UTF_8);
+
+			while (!str.isBlank()) {
+				final var lineBreak = str.indexOf('\n');
+				if (lineBreak == -1) {
+					sb.item.append(str);
+					break;
+				} else {
+					sb.item.append(str.substring(0, lineBreak));
+					final var line = sb.item.toString();
+					sb.item = new StringBuilder();
+					if (!line.isBlank()) {
+						messageConsumer.accept(line);
+					}
+					str = str.substring(lineBreak + 1);
+				}
 			}
 		}
 
 		this.log.debug("TCP socket receiver loop closed.");
+
+		this.closed(errorCode, message, alreadyDisconnected);
+	}
+
+	private void transmitLoop(final long timeout, final TimeUnit timeoutUnit) {
+
+		final var blockSize = 1024;
+		final var buf = ByteBuffer.allocate(blockSize);
+		final var errorCode = new Ref<Integer>();
+		final var message = new Ref<String>();
+
+		var alreadyDisconnected = false;
+
+		while (!Thread.currentThread().isInterrupted() && !this.disconnected.get()) {
+
+			try {
+				final var json = this.outs.take();
+
+				final var bytes = (json + "\n").getBytes(StandardCharsets.UTF_8);
+
+				final var fullChunks = bytes.length / blockSize;
+				final var partialChunkLen = bytes.length % blockSize;
+
+				for (var i = 0; i < fullChunks; i++) {
+					alreadyDisconnected = this.writeBuffer(timeout, timeoutUnit, buf, errorCode, message,
+							alreadyDisconnected, bytes, i * blockSize, blockSize);
+
+				}
+				if (partialChunkLen != 0) {
+					alreadyDisconnected = this.writeBuffer(timeout, timeoutUnit, buf, errorCode, message,
+							alreadyDisconnected, bytes, fullChunks * blockSize, partialChunkLen);
+				}
+
+			} catch (final InterruptedException e) {
+				alreadyDisconnected = this.interrupted(errorCode, message, e);
+			}
+		}
+
+		this.log.debug("TCP socket transmitter loop closed.");
+
+		this.closed(errorCode, message, alreadyDisconnected);
+	}
+
+	private boolean writeBuffer(final long timeout, final TimeUnit timeoutUnit, final ByteBuffer buf,
+			final Ref<Integer> errorCode, final Ref<String> message, boolean alreadyDisconnected, final byte[] bytes,
+			final int offset, final int len) throws InterruptedException {
+		buf.clear();
+		buf.put(bytes, offset, len);
+		buf.flip();
+		var written = 0;
+		while (written < len) {
+			try {
+				written += this.socket.write(buf).get(timeout, timeoutUnit);
+			} catch (ExecutionException | TimeoutException e) {
+				alreadyDisconnected = this.socketWriteException(errorCode, message, e);
+			}
+		}
+		return alreadyDisconnected;
+	}
+
+	private boolean interrupted(final Ref<Integer> errorCode, final Ref<String> message, final Throwable e) {
+		final var alreadyDisconnected = this.disconnected.getAndSet(true);
+		errorCode.item = 1;
+		message.item = "thread interrupted";
+		TcpClientSocket.this.onError.accept(e);
+		Thread.currentThread().interrupt();
+		return alreadyDisconnected;
+	}
+
+	private boolean socketReadException(final Ref<Integer> errorCode, final Ref<String> message, final Throwable e) {
+		final var alreadyDisconnected = this.disconnected.getAndSet(true);
+		errorCode.item = 2;
+		message.item = "socket read error";
+		TcpClientSocket.this.onError.accept(e);
+		Thread.currentThread().interrupt();
+		return alreadyDisconnected;
+	}
+
+	private boolean socketWriteException(final Ref<Integer> errorCode, final Ref<String> message, final Throwable e) {
+		final var alreadyDisconnected = this.disconnected.getAndSet(true);
+		errorCode.item = 3;
+		message.item = "socket write error";
+		TcpClientSocket.this.onError.accept(e);
+		Thread.currentThread().interrupt();
+		return alreadyDisconnected;
+	}
+
+	private void closed(final Ref<Integer> errorCode, final Ref<String> message, final boolean alreadyDisconnected) {
+		if (!alreadyDisconnected) {
+			this.onDisconnect.accept(errorCode.item, message.item);
+			try {
+				this.socket.close();
+			} catch (final IOException e) {
+				this.onError.accept(e);
+			}
+		}
 	}
 }

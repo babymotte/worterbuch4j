@@ -6,5 +6,5 @@ import java.util.List;
 
 public interface Constants {
 
-	public static final List<String> SUPPORTED_PROTOCOL_VERSIONS = Collections.unmodifiableList(Arrays.asList("0.10"));
+	public static final List<String> SUPPORTED_PROTOCOL_VERSIONS = Collections.unmodifiableList(Arrays.asList("0.11"));
 }

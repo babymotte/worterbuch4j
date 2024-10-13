@@ -213,8 +213,6 @@ public class WorterbuchClient implements AutoCloseable {
 		try {
 			clientSocket.open(socket);
 
-			wb.exec.scheduleAtFixedRate(wb::checkKeepalive, 0, 1, TimeUnit.SECONDS);
-
 			WorterbuchClient.instances.put(ticket, wb);
 		} catch (final Exception e) {
 			onError.accept(new WorterbuchException("Could not start client.", e));
@@ -252,13 +250,11 @@ public class WorterbuchClient implements AutoCloseable {
 
 		try {
 
-			final var clientSocket = new TcpClientSocket(uri, onDisconnect, onError);
+			final var clientSocket = new TcpClientSocket(uri, onDisconnect, onError, Config.CHANNEL_BUFFER_SIZE);
 
 			final var wb = new WorterbuchClient(exec, onWelcome, onDisconnect, onError, clientSocket);
 
-			clientSocket.open(msg -> wb.messageReceived(msg, callbackExecutor));
-
-			wb.exec.scheduleAtFixedRate(wb::checkKeepalive, 0, 1, TimeUnit.SECONDS);
+			clientSocket.open(msg -> wb.messageReceived(msg, callbackExecutor), Config.SEND_TIMEOUT, TimeUnit.SECONDS);
 
 			WorterbuchClient.instances.put(ticket, wb);
 
@@ -287,9 +283,6 @@ public class WorterbuchClient implements AutoCloseable {
 	private final Map<Long, Subscription<?>> subscriptions = new ConcurrentHashMap<>();
 	private final Map<Long, PSubscription<?>> pSubscriptions = new ConcurrentHashMap<>();
 	private final Map<Long, LsSubscription> lsSubscriptions = new ConcurrentHashMap<>();
-
-	private long lastKeepaliveSent = System.currentTimeMillis();
-	private long lastKeepaliveReceived = System.currentTimeMillis();
 
 	private boolean closing;
 	private boolean disconnected;
@@ -760,17 +753,16 @@ public class WorterbuchClient implements AutoCloseable {
 		try {
 			final var json = msg != null ? this.objectMapper.writeValueAsString(msg) : "\"\"";
 			this.client.sendString(json);
-			this.lastKeepaliveSent = System.currentTimeMillis();
 		} catch (final JsonProcessingException e) {
 			onError.accept(new WorterbuchException("Could not serialize message", e));
 		} catch (final IOException e) {
-			onError.accept(new WorterbuchException("Could not send websocket message", e));
+			onError.accept(new WorterbuchException("Could not send message", e));
+		} catch (final InterruptedException e) {
+			onError.accept(new WorterbuchException("Interrupted while sending message", e));
 		}
 	}
 
 	void messageReceived(final String message, final Executor callbackExecutor) {
-
-		this.lastKeepaliveReceived = System.currentTimeMillis();
 
 		if (this.isKeepalive(message)) {
 			return;
@@ -1106,24 +1098,6 @@ public class WorterbuchClient implements AutoCloseable {
 					callbackExecutor.execute(() -> pSubscription.callback.accept(new PStateEvent<>(null, null)));
 				}
 			}
-		}
-	}
-
-	private void checkKeepalive() {
-		final var now = System.currentTimeMillis();
-
-		final var lag = this.lastKeepaliveReceived - this.lastKeepaliveSent;
-
-		if ((now - this.lastKeepaliveSent) >= 1000) {
-			this.sendMessage(null, e -> this.onError.accept(new WorterbuchException("Could not send keepalive", e)));
-		}
-
-		if (lag >= 2000) {
-			this.log.warn("Server has been inactive for {} seconds …", lag / 1000);
-		}
-		if (lag >= Config.KEEPALIVE_TIMEOUT) {
-			this.log.warn("Server has been inactive for too long, disconnecting.");
-			this.close();
 		}
 	}
 
