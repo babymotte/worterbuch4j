@@ -124,7 +124,7 @@ public class TcpClientSocket implements ClientSocket {
 
 		var alreadyDisconnected = false;
 
-		while (!Thread.currentThread().isInterrupted() && !this.disconnected.get()) {
+		main: while (!Thread.currentThread().isInterrupted() && !this.disconnected.get()) {
 
 			buf.clear();
 
@@ -133,17 +133,17 @@ public class TcpClientSocket implements ClientSocket {
 				read = this.socket.read(buf).get();
 			} catch (final InterruptedException e) {
 				alreadyDisconnected = this.interrupted(errorCode, message, e);
-				break;
+				break main;
 			} catch (final ExecutionException e) {
 				alreadyDisconnected = this.socketReadException(errorCode, message, e.getCause());
-				break;
+				break main;
 			}
 
 			if (read == -1) {
 				alreadyDisconnected = this.disconnected.getAndSet(true);
 				errorCode.item = 0;
 				message.item = "stream closed";
-				break;
+				break main;
 			}
 
 			var str = new String(buf.array(), 0, read, StandardCharsets.UTF_8);
@@ -179,7 +179,7 @@ public class TcpClientSocket implements ClientSocket {
 
 		var alreadyDisconnected = false;
 
-		while (!Thread.currentThread().isInterrupted() && !this.disconnected.get()) {
+		main: while (!Thread.currentThread().isInterrupted() && !this.disconnected.get()) {
 
 			try {
 				final var json = this.outs.take();
@@ -190,17 +190,45 @@ public class TcpClientSocket implements ClientSocket {
 				final var partialChunkLen = bytes.length % blockSize;
 
 				for (var i = 0; i < fullChunks; i++) {
-					alreadyDisconnected = this.writeBuffer(timeout, timeoutUnit, buf, errorCode, message,
-							alreadyDisconnected, bytes, i * blockSize, blockSize);
+					final var offset = i * blockSize;
+					final var len = blockSize;
+
+					buf.clear();
+					buf.put(bytes, offset, len);
+					buf.flip();
+					var written = 0;
+					while (written < len) {
+						try {
+							written += this.socket.write(buf).get(timeout, timeoutUnit);
+						} catch (ExecutionException | TimeoutException e) {
+							alreadyDisconnected = this.socketWriteException(errorCode, message, e);
+							break main;
+						}
+					}
 
 				}
+
 				if (partialChunkLen != 0) {
-					alreadyDisconnected = this.writeBuffer(timeout, timeoutUnit, buf, errorCode, message,
-							alreadyDisconnected, bytes, fullChunks * blockSize, partialChunkLen);
+					final var offset = fullChunks * blockSize;
+					final var len = partialChunkLen;
+
+					buf.clear();
+					buf.put(bytes, offset, len);
+					buf.flip();
+					var written = 0;
+					while (written < len) {
+						try {
+							written += this.socket.write(buf).get(timeout, timeoutUnit);
+						} catch (ExecutionException | TimeoutException e) {
+							alreadyDisconnected = this.socketWriteException(errorCode, message, e);
+							break main;
+						}
+					}
 				}
 
 			} catch (final InterruptedException e) {
 				alreadyDisconnected = this.interrupted(errorCode, message, e);
+				break main;
 			}
 		}
 
@@ -209,28 +237,10 @@ public class TcpClientSocket implements ClientSocket {
 		this.closed(errorCode, message, alreadyDisconnected);
 	}
 
-	private boolean writeBuffer(final long timeout, final TimeUnit timeoutUnit, final ByteBuffer buf,
-			final Ref<Integer> errorCode, final Ref<String> message, boolean alreadyDisconnected, final byte[] bytes,
-			final int offset, final int len) throws InterruptedException {
-		buf.clear();
-		buf.put(bytes, offset, len);
-		buf.flip();
-		var written = 0;
-		while (written < len) {
-			try {
-				written += this.socket.write(buf).get(timeout, timeoutUnit);
-			} catch (ExecutionException | TimeoutException e) {
-				alreadyDisconnected = this.socketWriteException(errorCode, message, e);
-			}
-		}
-		return alreadyDisconnected;
-	}
-
 	private boolean interrupted(final Ref<Integer> errorCode, final Ref<String> message, final Throwable e) {
 		final var alreadyDisconnected = this.disconnected.getAndSet(true);
 		errorCode.item = 1;
 		message.item = "thread interrupted";
-		TcpClientSocket.this.onError.accept(e);
 		Thread.currentThread().interrupt();
 		return alreadyDisconnected;
 	}
