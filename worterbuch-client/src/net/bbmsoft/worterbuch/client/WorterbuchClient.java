@@ -54,6 +54,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.type.TypeFactory;
 
+import net.bbmsoft.worterbuch.client.error.SerializationFailed;
 import net.bbmsoft.worterbuch.client.impl.Config;
 import net.bbmsoft.worterbuch.client.impl.Constants;
 import net.bbmsoft.worterbuch.client.impl.TcpClientSocket;
@@ -317,13 +318,25 @@ public class WorterbuchClient implements AutoCloseable {
 
 	public <T> long set(final String key, final T value, final Consumer<? super Throwable> onError) {
 		final var tid = this.acquireTid();
-		this.exec.execute(() -> this.doSet(tid, key, value, onError));
+		String json;
+		try {
+			json = this.toJson(this.setMessage(tid, key, value));
+		} catch (final JsonProcessingException e) {
+			throw new SerializationFailed(e);
+		}
+		this.exec.execute(() -> this.doSet(json, onError));
 		return tid;
 	}
 
 	public <T> long publish(final String key, final T value, final Consumer<? super Throwable> onError) {
 		final var tid = this.acquireTid();
-		this.exec.execute(() -> this.doPublish(tid, key, value, onError));
+		String json;
+		try {
+			json = this.toJson(this.publishMessage(tid, key, value));
+		} catch (final JsonProcessingException e) {
+			throw new SerializationFailed(e);
+		}
+		this.exec.execute(() -> this.doPublish(json, onError));
 		return tid;
 	}
 
@@ -343,7 +356,13 @@ public class WorterbuchClient implements AutoCloseable {
 	public <T> long initPubStream(final String key, final Consumer<Long> callback,
 			final Consumer<? super Throwable> onError) {
 		final var tid = this.acquireTid();
-		this.exec.execute(() -> this.doInitPubStream(tid, key, res -> {
+		String json;
+		try {
+			json = this.toJson(this.initPubStreamMessage(tid, key));
+		} catch (final JsonProcessingException e) {
+			throw new SerializationFailed(e);
+		}
+		this.exec.execute(() -> this.doInitPubStream(tid, json, res -> {
 			if (res) {
 				callback.accept(tid);
 			} else {
@@ -354,58 +373,104 @@ public class WorterbuchClient implements AutoCloseable {
 	}
 
 	public <T> void streamPub(final long transactionId, final T value, final Consumer<? super Throwable> onError) {
-		this.exec.execute(() -> this.doStreamPub(transactionId, value, onError));
+		String json;
+		try {
+			json = this.toJson(this.streamPubMessage(transactionId, value));
+		} catch (final JsonProcessingException e) {
+			throw new SerializationFailed(e);
+		}
+		this.exec.execute(() -> this.doStreamPub(json, onError));
 	}
 
 	public <T> Future<Optional<T>> get(final String key, final Class<T> type) {
 		final var fut = new CompletableFuture<Optional<T>>();
-		this.<T>get(key, type, val -> fut.complete(val), e -> fut.completeExceptionally(e));
+		try {
+			this.<T>get(key, type, val -> fut.complete(val), e -> fut.completeExceptionally(e));
+		} catch (final SerializationFailed e) {
+			throw new SerializationFailed(e);
+		}
 		return fut;
 	}
 
 	public <T> long get(final String key, final Class<T> type, final Consumer<Optional<T>> callback,
 			final Consumer<? super Throwable> onError) {
 		final var tid = this.acquireTid();
-		this.exec.execute(() -> this.doGet(tid, key, type, callback, onError));
+		String json;
+		try {
+			json = this.toJson(this.getMessage(tid, key));
+		} catch (final JsonProcessingException e) {
+			throw new SerializationFailed(e);
+		}
+		this.exec.execute(() -> this.doGet(tid, json, type, callback, onError));
 		return tid;
 	}
 
 	public <T> Future<Optional<T[]>> getArray(final String key, final Class<T> elementType) {
 		final var fut = new CompletableFuture<Optional<T[]>>();
-		this.<T>getArray(key, elementType, val -> fut.complete(val), e -> fut.completeExceptionally(e));
+		try {
+			this.<T>getArray(key, elementType, val -> fut.complete(val), e -> fut.completeExceptionally(e));
+		} catch (final SerializationFailed e) {
+			throw new SerializationFailed(e);
+		}
 		return fut;
 	}
 
 	public <T> long getArray(final String key, final Class<T> elementType, final Consumer<Optional<T[]>> callback,
 			final Consumer<? super Throwable> onError) {
 		final var tid = this.acquireTid();
-		this.exec.execute(() -> this.doGet(tid, key, (GenericArrayType) () -> elementType, callback, onError));
+		String json;
+		try {
+			json = this.toJson(this.getMessage(tid, key));
+		} catch (final JsonProcessingException e) {
+			throw new SerializationFailed(e);
+		}
+		this.exec.execute(() -> this.doGet(tid, json, (GenericArrayType) () -> elementType, callback, onError));
 		return tid;
 	}
 
 	public <T> Future<List<KeyValuePair<T>>> pGet(final String pattern, final Class<T> type) {
 		final var fut = new CompletableFuture<List<KeyValuePair<T>>>();
-		this.<T>pGet(pattern, type, val -> fut.complete(val), e -> fut.completeExceptionally(e));
+		try {
+			this.<T>pGet(pattern, type, val -> fut.complete(val), e -> fut.completeExceptionally(e));
+		} catch (final SerializationFailed e) {
+			throw new SerializationFailed(e);
+		}
 		return fut;
 	}
 
 	public <T> long pGet(final String pattern, final Class<T> type, final Consumer<List<KeyValuePair<T>>> callback,
 			final Consumer<? super Throwable> onError) {
 		final var tid = this.acquireTid();
-		this.exec.execute(() -> this.doPGet(tid, pattern, type, callback, onError));
+		String json;
+		try {
+			json = this.toJson(this.pgetMessage(tid, pattern));
+		} catch (final JsonProcessingException e) {
+			throw new SerializationFailed(e);
+		}
+		this.exec.execute(() -> this.doPGet(tid, json, type, callback, onError));
 		return tid;
 	}
 
 	public <T> Future<Optional<T>> delete(final String key, final Class<T> type) {
 		final var fut = new CompletableFuture<Optional<T>>();
-		this.<T>delete(key, type, val -> fut.complete(val), e -> fut.completeExceptionally(e));
+		try {
+			this.<T>delete(key, type, val -> fut.complete(val), e -> fut.completeExceptionally(e));
+		} catch (final SerializationFailed e) {
+			throw new SerializationFailed(e);
+		}
 		return fut;
 	}
 
 	public <T> long delete(final String key, final Class<T> type, final Consumer<Optional<T>> callback,
 			final Consumer<? super Throwable> onError) {
 		final var tid = this.acquireTid();
-		this.exec.execute(() -> this.doDelete(tid, key, type, callback, onError));
+		String json;
+		try {
+			json = this.toJson(this.deleteMessage(tid, key));
+		} catch (final JsonProcessingException e) {
+			throw new SerializationFailed(e);
+		}
+		this.exec.execute(() -> this.doDelete(tid, json, type, callback, onError));
 		return tid;
 	}
 
@@ -415,59 +480,105 @@ public class WorterbuchClient implements AutoCloseable {
 
 	public <T> Future<List<KeyValuePair<T>>> pDelete(final String pattern, final Class<T> type) {
 		final var fut = new CompletableFuture<List<KeyValuePair<T>>>();
-		this.<T>pDelete(pattern, type, val -> fut.complete(val), e -> fut.completeExceptionally(e));
+		try {
+			this.<T>pDelete(pattern, type, val -> fut.complete(val), e -> fut.completeExceptionally(e));
+		} catch (final SerializationFailed e) {
+			throw new SerializationFailed(e);
+		}
 		return fut;
 	}
 
 	public Future<Void> pDelete(final String pattern) {
 		final var fut = new CompletableFuture<Void>();
-		this.pDelete(pattern, () -> fut.complete(null), e -> fut.completeExceptionally(e));
+		try {
+			this.pDelete(pattern, () -> fut.complete(null), e -> fut.completeExceptionally(e));
+		} catch (final SerializationFailed e) {
+			throw new SerializationFailed(e);
+		}
 		return fut;
 	}
 
 	public <T> long pDelete(final String pattern, final Class<T> type, final Consumer<List<KeyValuePair<T>>> callback,
 			final Consumer<? super Throwable> onError) {
 		final var tid = this.acquireTid();
-		this.exec.execute(() -> this.doPDelete(tid, pattern, false, type, callback, onError));
+		String json;
+		try {
+			json = this.toJson(this.pDeleteMessage(tid, pattern, false));
+		} catch (final JsonProcessingException e) {
+			throw new SerializationFailed(e);
+		}
+		this.exec.execute(() -> this.doPDelete(tid, json, type, callback, onError));
 		return tid;
 	}
 
 	public long pDelete(final String pattern, final Runnable callback, final Consumer<? super Throwable> onError) {
 		final var tid = this.acquireTid();
-		this.exec.execute(() -> this.doPDelete(tid, pattern, true, Void.class, val -> callback.run(), onError));
+		String json;
+		try {
+			json = this.toJson(this.pDeleteMessage(tid, pattern, true));
+		} catch (final JsonProcessingException e) {
+			throw new SerializationFailed(e);
+		}
+		this.exec.execute(() -> this.doPDelete(tid, json, Void.class, val -> callback.run(), onError));
 		return tid;
 	}
 
 	public Future<List<String>> ls(final String parent) {
 		final var fut = new CompletableFuture<List<String>>();
-		this.ls(parent, val -> fut.complete(val), e -> fut.completeExceptionally(e));
+		try {
+			this.ls(parent, val -> fut.complete(val), e -> fut.completeExceptionally(e));
+		} catch (final SerializationFailed e) {
+			throw new SerializationFailed(e);
+		}
 		return fut;
 	}
 
 	public long ls(final String parent, final Consumer<List<String>> callback,
 			final Consumer<? super Throwable> onError) {
 		final var tid = this.acquireTid();
-		this.exec.execute(() -> this.doLs(tid, parent, callback, onError));
+		String json;
+		try {
+			json = this.toJson(this.lsMessage(tid, parent));
+		} catch (final JsonProcessingException e) {
+			throw new SerializationFailed(e);
+		}
+		this.exec.execute(() -> this.doLs(tid, json, callback, onError));
 		return tid;
 	}
 
 	public Future<List<String>> pLs(final String parentPattern) {
 		final var fut = new CompletableFuture<List<String>>();
-		this.pLs(parentPattern, val -> fut.complete(val), e -> fut.completeExceptionally(e));
+		try {
+			this.pLs(parentPattern, val -> fut.complete(val), e -> fut.completeExceptionally(e));
+		} catch (final SerializationFailed e) {
+			throw new SerializationFailed(e);
+		}
 		return fut;
 	}
 
 	public long pLs(final String parentPattern, final Consumer<List<String>> callback,
 			final Consumer<? super Throwable> onError) {
 		final var tid = this.acquireTid();
-		this.exec.execute(() -> this.doPLs(tid, parentPattern, callback, onError));
+		String json;
+		try {
+			json = this.toJson(this.pLsMessage(tid, parentPattern));
+		} catch (final JsonProcessingException e) {
+			throw new SerializationFailed(e);
+		}
+		this.exec.execute(() -> this.doPLs(tid, json, callback, onError));
 		return tid;
 	}
 
 	public <T> long subscribe(final String key, final boolean unique, final boolean liveOnly, final Class<T> type,
 			final Consumer<Optional<T>> callback, final Consumer<? super Throwable> onError) {
 		final var tid = this.acquireTid();
-		this.exec.execute(() -> this.doSubscribe(tid, key, unique, liveOnly, type, callback, onError));
+		String json;
+		try {
+			json = this.toJson(this.subscribeMessage(tid, key, unique, liveOnly));
+		} catch (final JsonProcessingException e) {
+			throw new SerializationFailed(e);
+		}
+		this.exec.execute(() -> this.doSubscribe(tid, json, type, callback, onError));
 		return tid;
 	}
 
@@ -475,8 +586,13 @@ public class WorterbuchClient implements AutoCloseable {
 			final Class<T> elementType, final Consumer<Optional<T[]>> callback,
 			final Consumer<? super Throwable> onError) {
 		final var tid = this.acquireTid();
-		this.exec.execute(() -> this.doSubscribe(tid, key, unique, liveOnly, (GenericArrayType) () -> elementType,
-				callback, onError));
+		String json;
+		try {
+			json = this.toJson(this.subscribeMessage(tid, key, unique, liveOnly));
+		} catch (final JsonProcessingException e) {
+			throw new SerializationFailed(e);
+		}
+		this.exec.execute(() -> this.doSubscribe(tid, json, (GenericArrayType) () -> elementType, callback, onError));
 		return tid;
 	}
 
@@ -484,24 +600,47 @@ public class WorterbuchClient implements AutoCloseable {
 			final Optional<Long> aggregateEvents, final Class<T> type, final Consumer<PStateEvent<T>> callback,
 			final Consumer<? super Throwable> onError) {
 		final var tid = this.acquireTid();
-		this.exec.execute(
-				() -> this.doPSubscribe(tid, pattern, unique, liveOnly, aggregateEvents, type, callback, onError));
+		String json;
+		try {
+			json = this.toJson(this.pSubMessage(tid, pattern, unique, liveOnly, aggregateEvents));
+		} catch (final JsonProcessingException e) {
+			throw new SerializationFailed(e);
+		}
+		this.exec.execute(() -> this.doPSubscribe(tid, json, type, callback, onError));
 		return tid;
 	}
 
 	public void unsubscribe(final long transactionId, final Consumer<? super Throwable> onError) {
-		this.exec.execute(() -> this.doUnsubscribe(transactionId, onError));
+		String json;
+		try {
+			json = this.toJson(this.unsubscribeMessage(transactionId));
+		} catch (final JsonProcessingException e) {
+			throw new SerializationFailed(e);
+		}
+		this.exec.execute(() -> this.doUnsubscribe(transactionId, json, onError));
 	}
 
 	public long subscribeLs(final String parent, final Consumer<List<String>> callback,
 			final Consumer<? super Throwable> onError) {
 		final var tid = this.acquireTid();
-		this.exec.execute(() -> this.doSubscribeLs(tid, parent, callback, onError));
+		String json;
+		try {
+			json = this.toJson(this.subscribeLsMessage(tid, parent));
+		} catch (final JsonProcessingException e) {
+			throw new SerializationFailed(e);
+		}
+		this.exec.execute(() -> this.doSubscribeLs(tid, json, callback, onError));
 		return tid;
 	}
 
 	public void unsubscribeLs(final long transactionId, final Consumer<? super Throwable> onError) {
-		this.exec.execute(() -> this.doUnsubscribeLs(transactionId, onError));
+		String json;
+		try {
+			json = this.toJson(this.unsubscribeLsMessage(transactionId));
+		} catch (final JsonProcessingException e) {
+			throw new SerializationFailed(e);
+		}
+		this.exec.execute(() -> this.doUnsubscribeLs(transactionId, json, onError));
 	}
 
 	public ObjectMapper getObjectMapper() {
@@ -541,150 +680,159 @@ public class WorterbuchClient implements AutoCloseable {
 		return this.set("$SYS/clients/" + this.getClientId() + "/clientName", name, this.onError);
 	}
 
-	private <T> void doSet(final long tid, final String key, final T value, final Consumer<? super Throwable> onError) {
-
+	private <T> ClientMessage setMessage(final long tid, final String key, final T value) {
 		final var set = new Set();
 		set.setTransactionId(tid);
 		set.setKey(key);
 		set.setValue(value);
 		final var msg = new ClientMessage();
 		msg.setSet(set);
-
-		this.sendMessage(msg, onError);
+		return msg;
 	}
 
-	private <T> void doPublish(final long tid, final String key, final T value,
-			final Consumer<? super Throwable> onError) {
+	private <T> void doSet(final String jsonMessage, final Consumer<? super Throwable> onError) {
+		this.sendMessage(jsonMessage, onError);
+	}
 
+	private <T> ClientMessage publishMessage(final long tid, final String key, final T value) {
 		final var pub = new Publish();
 		pub.setTransactionId(tid);
 		pub.setKey(key);
 		pub.setValue(value);
 		final var msg = new ClientMessage();
 		msg.setPublish(pub);
-
-		this.sendMessage(msg, onError);
+		return msg;
 	}
 
-	private <T> void doInitPubStream(final long tid, final String key, final Consumer<Boolean> callback,
-			final Consumer<? super Throwable> onError) {
+	private <T> void doPublish(final String jsonMessage, final Consumer<? super Throwable> onError) {
+		this.sendMessage(jsonMessage, onError);
+	}
 
-		this.pendingSPubInits.put(tid, new PendingSPubInit<>(callback));
-
+	private ClientMessage initPubStreamMessage(final long tid, final String key) {
 		final var sPubInit = new SPubInit();
 		sPubInit.setTransactionId(tid);
 		sPubInit.setKey(key);
 		final var msg = new ClientMessage();
 		msg.setsPubInit(sPubInit);
-
-		this.sendMessage(msg, onError);
+		return msg;
 	}
 
-	private <T> void doStreamPub(final long tid, final T value, final Consumer<? super Throwable> onError) {
+	private <T> void doInitPubStream(final long tid, final String jsonMessage, final Consumer<Boolean> callback,
+			final Consumer<? super Throwable> onError) {
+		this.pendingSPubInits.put(tid, new PendingSPubInit<>(callback));
+		this.sendMessage(jsonMessage, onError);
+	}
 
+	private <T> ClientMessage streamPubMessage(final long tid, final T value) {
 		final var sPub = new SPub();
 		sPub.setTransactionId(tid);
 		sPub.setValue(value);
 		final var msg = new ClientMessage();
 		msg.setsPub(sPub);
-
-		this.sendMessage(msg, onError);
+		return msg;
 	}
 
-	private <T> void doGet(final long tid, final String key, final Type type, final Consumer<Optional<T>> callback,
-			final Consumer<? super Throwable> onError) {
+	private <T> void doStreamPub(final String jsonMessage, final Consumer<? super Throwable> onError) {
+		this.sendMessage(jsonMessage, onError);
+	}
 
-		this.pendingGets.put(tid, new PendingGet<>(callback, type));
-
+	private ClientMessage getMessage(final long tid, final String key) {
 		final var get = new Get();
 		get.setTransactionId(tid);
 		get.setKey(key);
 		final var msg = new ClientMessage();
 		msg.setGet(get);
-
-		this.sendMessage(msg, onError);
+		return msg;
 	}
 
-	private <T> void doPGet(final long tid, final String pattern, final Class<T> type,
-			final Consumer<List<KeyValuePair<T>>> callback, final Consumer<? super Throwable> onError) {
+	private <T> void doGet(final long tid, final String jsonMessage, final Type type,
+			final Consumer<Optional<T>> callback, final Consumer<? super Throwable> onError) {
+		this.pendingGets.put(tid, new PendingGet<>(callback, type));
+		this.sendMessage(jsonMessage, onError);
+	}
 
-		this.pendingPGets.put(tid, new PendingPGet<>(callback, type));
-
+	private ClientMessage pgetMessage(final long tid, final String pattern) {
 		final var pget = new PGet();
 		pget.setTransactionId(tid);
 		pget.setRequestPattern(pattern);
 		final var msg = new ClientMessage();
 		msg.setpGet(pget);
-
-		this.sendMessage(msg, onError);
+		return msg;
 	}
 
-	private <T> void doDelete(final long tid, final String key, final Class<T> type,
-			final Consumer<Optional<T>> callback, final Consumer<? super Throwable> onError) {
+	private <T> void doPGet(final long tid, final String jsonMessage, final Class<T> type,
+			final Consumer<List<KeyValuePair<T>>> callback, final Consumer<? super Throwable> onError) {
+		this.pendingPGets.put(tid, new PendingPGet<>(callback, type));
+		this.sendMessage(jsonMessage, onError);
+	}
 
-		if (callback != null) {
-			this.pendingDeletes.put(tid, new PendingDelete<>(callback, Objects.requireNonNull(type)));
-		}
-
+	private ClientMessage deleteMessage(final long tid, final String key) {
 		final var del = new Delete();
 		del.setTransactionId(tid);
 		del.setKey(key);
 		final var msg = new ClientMessage();
 		msg.setDelete(del);
-
-		this.sendMessage(msg, onError);
+		return msg;
 	}
 
-	private <T> void doPDelete(final long tid, final String pattern, final boolean quiet, final Class<T> type,
-			final Consumer<List<KeyValuePair<T>>> callback, final Consumer<? super Throwable> onError) {
-
+	private <T> void doDelete(final long tid, final String jsonMessage, final Class<T> type,
+			final Consumer<Optional<T>> callback, final Consumer<? super Throwable> onError) {
 		if (callback != null) {
-			this.pendingPDeletes.put(tid, new PendingPDelete<>(callback, Objects.requireNonNull(type)));
+			this.pendingDeletes.put(tid, new PendingDelete<>(callback, Objects.requireNonNull(type)));
 		}
+		this.sendMessage(jsonMessage, onError);
+	}
 
+	private ClientMessage pDeleteMessage(final long tid, final String pattern, final boolean quiet) {
 		final var pdel = new PDelete();
 		pdel.setTransactionId(tid);
 		pdel.setRequestPattern(pattern);
 		pdel.setQuiet(quiet);
 		final var msg = new ClientMessage();
 		msg.setpDelete(pdel);
-
-		this.sendMessage(msg, onError);
+		return msg;
 	}
 
-	private void doLs(final long tid, final String parent, final Consumer<List<String>> callback,
-			final Consumer<? super Throwable> onError) {
+	private <T> void doPDelete(final long tid, final String jsonMessage, final Class<T> type,
+			final Consumer<List<KeyValuePair<T>>> callback, final Consumer<? super Throwable> onError) {
+		if (callback != null) {
+			this.pendingPDeletes.put(tid, new PendingPDelete<>(callback, Objects.requireNonNull(type)));
+		}
+		this.sendMessage(jsonMessage, onError);
+	}
 
-		this.pendingLsStates.put(tid, new PendingLsState(callback));
-
+	private ClientMessage lsMessage(final long tid, final String parent) {
 		final var ls = new Ls();
 		ls.setTransactionId(tid);
 		ls.setParent(parent);
 		final var msg = new ClientMessage();
 		msg.setLs(ls);
-
-		this.sendMessage(msg, onError);
+		return msg;
 	}
 
-	private void doPLs(final long tid, final String parentPattern, final Consumer<List<String>> callback,
+	private void doLs(final long tid, final String jsonMessage, final Consumer<List<String>> callback,
 			final Consumer<? super Throwable> onError) {
-
 		this.pendingLsStates.put(tid, new PendingLsState(callback));
+		this.sendMessage(jsonMessage, onError);
+	}
 
+	private ClientMessage pLsMessage(final long tid, final String parentPattern) {
 		final var pLs = new PLs();
 		pLs.setTransactionId(tid);
 		pLs.setParentPattern(parentPattern);
 		final var msg = new ClientMessage();
 		msg.setpLs(pLs);
-
-		this.sendMessage(msg, onError);
+		return msg;
 	}
 
-	private <T> void doSubscribe(final long tid, final String key, final boolean unique, final boolean liveOnly,
-			final Type type, final Consumer<Optional<T>> callback, final Consumer<? super Throwable> onError) {
+	private void doPLs(final long tid, final String jsonMessage, final Consumer<List<String>> callback,
+			final Consumer<? super Throwable> onError) {
+		this.pendingLsStates.put(tid, new PendingLsState(callback));
+		this.sendMessage(jsonMessage, onError);
+	}
 
-		this.subscriptions.put(tid, new Subscription<>(callback, type));
-
+	private ClientMessage subscribeMessage(final long tid, final String key, final boolean unique,
+			final boolean liveOnly) {
 		final var sub = new Subscribe();
 		sub.setTransactionId(tid);
 		sub.setKey(key);
@@ -692,16 +840,17 @@ public class WorterbuchClient implements AutoCloseable {
 		sub.setLiveOnly(liveOnly);
 		final var msg = new ClientMessage();
 		msg.setSubscribe(sub);
-
-		this.sendMessage(msg, onError);
+		return msg;
 	}
 
-	private <T> void doPSubscribe(final long tid, final String pattern, final boolean unique, final boolean liveOnly,
-			final Optional<Long> aggregateEvents, final Class<T> type, final Consumer<PStateEvent<T>> callback,
-			final Consumer<? super Throwable> onError) {
+	private <T> void doSubscribe(final long tid, final String jsonMessage, final Type type,
+			final Consumer<Optional<T>> callback, final Consumer<? super Throwable> onError) {
+		this.subscriptions.put(tid, new Subscription<>(callback, type));
+		this.sendMessage(jsonMessage, onError);
+	}
 
-		this.pSubscriptions.put(tid, new PSubscription<>(callback, type));
-
+	private ClientMessage pSubMessage(final long tid, final String pattern, final boolean unique,
+			final boolean liveOnly, final Optional<Long> aggregateEvents) {
 		final var psub = new PSubscribe();
 		psub.setTransactionId(tid);
 		psub.setRequestPattern(pattern);
@@ -710,56 +859,67 @@ public class WorterbuchClient implements AutoCloseable {
 		aggregateEvents.ifPresent(psub::setAggregateEvents);
 		final var msg = new ClientMessage();
 		msg.setpSubscribe(psub);
-
-		this.sendMessage(msg, onError);
+		return msg;
 	}
 
-	private void doUnsubscribe(final long transactionId, final Consumer<? super Throwable> onError) {
+	private <T> void doPSubscribe(final long tid, final String jsonMessage, final Class<T> type,
+			final Consumer<PStateEvent<T>> callback, final Consumer<? super Throwable> onError) {
+		this.pSubscriptions.put(tid, new PSubscription<>(callback, type));
+		this.sendMessage(jsonMessage, onError);
+	}
 
-		this.subscriptions.remove(transactionId);
-		this.pSubscriptions.remove(transactionId);
-
+	private ClientMessage unsubscribeMessage(final long transactionId) {
 		final var unsub = new Unsubscribe();
 		unsub.setTransactionId(transactionId);
 		final var msg = new ClientMessage();
 		msg.setUnsubscribe(unsub);
-
-		this.sendMessage(msg, onError);
+		return msg;
 	}
 
-	private void doSubscribeLs(final long tid, final String parent, final Consumer<List<String>> callback,
+	private void doUnsubscribe(final long transactionId, final String jsonMessage,
 			final Consumer<? super Throwable> onError) {
+		this.subscriptions.remove(transactionId);
+		this.pSubscriptions.remove(transactionId);
+		this.sendMessage(jsonMessage, onError);
+	}
 
-		this.lsSubscriptions.put(tid, new LsSubscription(callback));
-
+	private ClientMessage subscribeLsMessage(final long tid, final String parent) {
 		final var lssub = new SubscribeLs();
 		lssub.setTransactionId(tid);
 		lssub.setParent(parent);
 		final var msg = new ClientMessage();
 		msg.setSubscribeLs(lssub);
-
-		this.sendMessage(msg, onError);
+		return msg;
 	}
 
-	private void doUnsubscribeLs(final long transactionId, final Consumer<? super Throwable> onError) {
+	private void doSubscribeLs(final long tid, final String jsonMessage, final Consumer<List<String>> callback,
+			final Consumer<? super Throwable> onError) {
+		this.lsSubscriptions.put(tid, new LsSubscription(callback));
+		this.sendMessage(jsonMessage, onError);
+	}
 
-		this.lsSubscriptions.remove(transactionId);
-
+	private ClientMessage unsubscribeLsMessage(final long transactionId) {
 		final var unsub = new UnsubscribeLs();
 		unsub.setTransactionId(transactionId);
 		final var msg = new ClientMessage();
 		msg.setUnsubscribeLs(unsub);
-
-		this.sendMessage(msg, onError);
+		return msg;
 	}
 
-	private void sendMessage(final ClientMessage msg, final Consumer<? super Throwable> onError) {
+	private void doUnsubscribeLs(final long transactionId, final String jsonMessage,
+			final Consumer<? super Throwable> onError) {
+		this.lsSubscriptions.remove(transactionId);
+		this.sendMessage(jsonMessage, onError);
+	}
+
+	private String toJson(final ClientMessage msg) throws JsonProcessingException {
+		return msg != null ? this.objectMapper.writeValueAsString(msg) : "\"\"";
+	}
+
+	private void sendMessage(final String json, final Consumer<? super Throwable> onError) {
 
 		try {
-			final var json = msg != null ? this.objectMapper.writeValueAsString(msg) : "\"\"";
 			this.client.sendString(json);
-		} catch (final JsonProcessingException e) {
-			onError.accept(new WorterbuchException("Could not serialize message", e));
 		} catch (final IOException e) {
 			onError.accept(new WorterbuchException("Could not send message", e));
 		} catch (final InterruptedException e) {
@@ -968,12 +1128,22 @@ public class WorterbuchClient implements AutoCloseable {
 		}
 	}
 
+	private ClientMessage authMessage(final String token) {
+		final var auth = new AuthorizationRequest(token);
+		final var msg = new ClientMessage();
+		msg.setAuthorizationRequest(auth);
+		return msg;
+	}
+
 	void authorize(final Optional<String> authToken) {
 		authToken.ifPresent(token -> {
-			final var auth = new AuthorizationRequest(token);
-			final var msg = new ClientMessage();
-			msg.setAuthorizationRequest(auth);
-			this.sendMessage(msg, this.onError);
+			String jsonMessage;
+			try {
+				jsonMessage = this.toJson(this.authMessage(token));
+			} catch (final JsonProcessingException e) {
+				throw new SerializationFailed(e);
+			}
+			this.sendMessage(jsonMessage, this.onError);
 		});
 	}
 
