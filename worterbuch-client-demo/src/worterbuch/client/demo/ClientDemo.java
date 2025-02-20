@@ -99,7 +99,7 @@ public class ClientDemo {
 	private void run()
 			throws ExecutionException, URISyntaxException, TimeoutException, InterruptedException, WorterbuchException {
 
-		final var uris = Arrays.asList(new URI("tcp://localhost:8083"), new URI("ws://localhost:8080"),
+		final var uris = Arrays.asList(new URI("ws://localhost:8081/ws"), new URI("ws://localhost:8080"),
 				new URI("ws://localhost:8080/ws"));
 
 		final var authToken = System.getenv("WORTERBUCH_AUTH_TOKEN");

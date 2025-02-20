@@ -229,7 +229,9 @@ public class WorterbuchClient implements AutoCloseable {
 			throw err.get();
 		}
 
-		latch.await(Config.CONNECT_TIMEOUT, TimeUnit.SECONDS);
+		if (!latch.await(Config.CONNECT_TIMEOUT, TimeUnit.SECONDS)) {
+			throw new WorterbuchException("did not receive welcome message");
+		}
 
 		return wb;
 	}
@@ -265,7 +267,9 @@ public class WorterbuchClient implements AutoCloseable {
 
 		clientSocket.open(msg -> wb.messageReceived(msg, callbackExecutor), Config.SEND_TIMEOUT, TimeUnit.SECONDS);
 
-		latch.await(Config.CONNECT_TIMEOUT, TimeUnit.SECONDS);
+		if (!latch.await(Config.CONNECT_TIMEOUT, TimeUnit.SECONDS)) {
+			throw new WorterbuchException("did not receive welcome message");
+		}
 
 		return wb;
 
