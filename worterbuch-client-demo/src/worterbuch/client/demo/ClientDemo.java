@@ -81,7 +81,8 @@ public class ClientDemo {
 		this.thread = new Thread(() -> {
 			try {
 				this.run();
-			} catch (ExecutionException | InterruptedException | URISyntaxException | TimeoutException e) {
+			} catch (ExecutionException | InterruptedException | URISyntaxException | TimeoutException
+					| WorterbuchException e) {
 				this.error(e);
 			}
 		});
@@ -95,14 +96,16 @@ public class ClientDemo {
 		this.thread.interrupt();
 	}
 
-	private void run() throws ExecutionException, URISyntaxException, TimeoutException, InterruptedException {
+	private void run()
+			throws ExecutionException, URISyntaxException, TimeoutException, InterruptedException, WorterbuchException {
 
-		final var uri = new URI("tcp://localhost:8081");
+		final var uris = Arrays.asList(new URI("tcp://localhost:8083"), new URI("ws://localhost:8080"),
+				new URI("ws://localhost:8080/ws"));
 
 		final var authToken = System.getenv("WORTERBUCH_AUTH_TOKEN");
 
-		final var wb = authToken != null ? WorterbuchClient.connect(uri, authToken, this::exit, this::error)
-				: WorterbuchClient.connect(uri, this::exit, this::error);
+		final var wb = authToken != null ? WorterbuchClient.connect(uris, authToken, this::exit, this::error)
+				: WorterbuchClient.connect(uris, this::exit, this::error);
 
 		wb.pLs("$SYS/?/?", System.err::println, System.err::println);
 

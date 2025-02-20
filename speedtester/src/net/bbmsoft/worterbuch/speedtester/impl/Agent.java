@@ -21,6 +21,7 @@ package net.bbmsoft.worterbuch.speedtester.impl;
 
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.util.Arrays;
 import java.util.Optional;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -28,6 +29,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
 import net.bbmsoft.worterbuch.client.WorterbuchClient;
+import net.bbmsoft.worterbuch.client.WorterbuchException;
 import net.bbmsoft.worterbuch.speedtester.SpeedTester.StatusListener;
 
 public class Agent {
@@ -43,7 +45,7 @@ public class Agent {
 	private final WorterbuchClient wb;
 
 	public Agent(final int id, final double targetRate, final StatusListener statusListener)
-			throws InterruptedException, TimeoutException, URISyntaxException {
+			throws InterruptedException, TimeoutException, URISyntaxException, WorterbuchException {
 		this.id = id;
 		this.statusListener = statusListener;
 		this.executor = Executors
@@ -63,7 +65,8 @@ public class Agent {
 						+ (port != null ? port : "8081")));
 
 		System.err.println("Connecting to worterbuch server " + uri);
-		this.wb = WorterbuchClient.connect(uri, Optional.empty(), this.executor, this::onDisconnect, this::onError);
+		this.wb = WorterbuchClient.connect(Arrays.asList(uri), Optional.empty(), this.executor, this::onDisconnect,
+				this::onError);
 	}
 
 	public void start() {

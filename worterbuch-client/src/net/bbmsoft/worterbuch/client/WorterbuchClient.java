@@ -28,23 +28,23 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.SynchronousQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
 import org.eclipse.jetty.websocket.api.Session;
 import org.eclipse.jetty.websocket.api.WebSocketAdapter;
-import org.eclipse.jetty.websocket.client.WebSocketClient;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -91,72 +91,75 @@ import net.bbmsoft.worterbuch.client.pending.Subscription;
 
 public class WorterbuchClient implements AutoCloseable {
 
-	private static Map<UUID, WorterbuchClient> instances = new ConcurrentHashMap<>();
+	private final static Logger log = LoggerFactory.getLogger(WorterbuchClient.class);
 
-	public static WorterbuchClient connect(final URI uri, final BiConsumer<Integer, String> onDisconnect,
-			final Consumer<Throwable> onError) throws InterruptedException, TimeoutException {
+	public static WorterbuchClient connect(final Iterable<URI> uris, final BiConsumer<Integer, String> onDisconnect,
+			final Consumer<Throwable> onError) throws InterruptedException, TimeoutException, WorterbuchException {
 
-		final var exec = new WrappingExecutor(
+		final var callbackExecutor = new WrappingExecutor(
 				Executors.newSingleThreadScheduledExecutor(r -> new Thread(r, "worterbuch-client-callbacks")), onError);
-		return WorterbuchClient.connect(uri, Optional.empty(), exec, onDisconnect, onError);
+
+		return WorterbuchClient.connect(uris, Optional.empty(), callbackExecutor, onDisconnect, onError);
 	}
 
-	public static WorterbuchClient connect(final URI uri, final String authToken,
+	public static WorterbuchClient connect(final Iterable<URI> uris, final String authToken,
 			final BiConsumer<Integer, String> onDisconnect, final Consumer<Throwable> onError)
-			throws InterruptedException, TimeoutException {
+			throws InterruptedException, TimeoutException, WorterbuchException {
 
-		final var exec = new WrappingExecutor(
+		final var callbackExecutor = new WrappingExecutor(
 				Executors.newSingleThreadScheduledExecutor(r -> new Thread(r, "worterbuch-client-callbacks")), onError);
-		return WorterbuchClient.connect(uri, Optional.of(authToken), exec, onDisconnect, onError);
+		return WorterbuchClient.connect(uris, Optional.of(authToken), callbackExecutor, onDisconnect, onError);
 	}
 
-	public static WorterbuchClient connect(final URI uri, final Optional<String> authToken,
+	public static WorterbuchClient connect(final Iterable<URI> uris, final Optional<String> authToken,
 			final Executor callbackExecutor, final BiConsumer<Integer, String> onDisconnect,
-			final Consumer<Throwable> onError) throws TimeoutException {
+			final Consumer<Throwable> onError) throws TimeoutException, WorterbuchException {
 
-		Objects.requireNonNull(uri);
+		Objects.requireNonNull(uris);
 		Objects.requireNonNull(onDisconnect);
 		Objects.requireNonNull(onError);
 
 		final var exec = new WrappingExecutor(
 				Executors.newSingleThreadScheduledExecutor(r -> new Thread(r, "worterbuch-client")), onError);
-		final var queue = new SynchronousQueue<WorterbuchClient>();
-		final var ticket = UUID.randomUUID();
 
-		exec.execute(() -> WorterbuchClient.initWorterbuchClient(uri, authToken, onDisconnect, onError, exec, queue,
-				ticket, Objects.requireNonNull(callbackExecutor)));
+		WorterbuchClient wb = null;
 
-		WorterbuchClient wb;
-		try {
-			wb = queue.poll(Config.CONNECT_TIMEOUT, TimeUnit.SECONDS);
-		} catch (final InterruptedException e) {
-			return null;
+		for (final URI uri : uris) {
+			try {
+				wb = WorterbuchClient.initWorterbuchClient(uri, authToken, onDisconnect, onError, exec,
+						Objects.requireNonNull(callbackExecutor));
+				break;
+			} catch (final Throwable e) {
+				WorterbuchClient.log.warn("Could not connect to server {}: {}", uri, e.getMessage());
+			}
 		}
+
 		if (wb == null) {
-			throw new TimeoutException();
+			throw new WorterbuchException("Could not connect to any server.");
 		}
+
 		return wb;
 	}
 
-	private static void initWorterbuchClient(final URI uri, final Optional<String> authtoken,
+	private static WorterbuchClient initWorterbuchClient(final URI uri, final Optional<String> authtoken,
 			final BiConsumer<Integer, String> onDisconnect, final Consumer<? super Throwable> onError,
-			final ScheduledExecutorService exec, final SynchronousQueue<WorterbuchClient> queue, final UUID ticket,
-			final Executor callbackExecutor) {
+			final ScheduledExecutorService exec, final Executor callbackExecutor) throws Throwable {
 
 		if (uri.getScheme().equals("tcp")) {
-			WorterbuchClient.initTcpWorterbuchClient(uri, authtoken, onDisconnect, onError, exec, queue, ticket,
+			return WorterbuchClient.initTcpWorterbuchClient(uri, authtoken, onDisconnect, onError, exec,
 					callbackExecutor);
 		} else {
-			WorterbuchClient.initWsWorterbuchClient(uri, authtoken, onDisconnect, onError, exec, queue, ticket,
+			return WorterbuchClient.initWsWorterbuchClient(uri, authtoken, onDisconnect, onError, exec,
 					callbackExecutor);
 		}
 
 	}
 
-	private static void initWsWorterbuchClient(final URI uri, final Optional<String> authtoken,
+	private static WorterbuchClient initWsWorterbuchClient(final URI uri, final Optional<String> authtoken,
 			final BiConsumer<Integer, String> onDisconnect, final Consumer<? super Throwable> onError,
-			final ScheduledExecutorService exec, final SynchronousQueue<WorterbuchClient> queue, final UUID ticket,
-			final Executor callbackExecutor) {
+			final ScheduledExecutorService exec, final Executor callbackExecutor) throws Throwable {
+
+		final var latch = new CountDownLatch(1);
 
 		final BiConsumer<Welcome, WorterbuchClient> onWelcome = (welcome, client) -> {
 
@@ -173,26 +176,24 @@ public class WorterbuchClient implements AutoCloseable {
 				client.authorize(authtoken);
 			}
 
-			try {
-				queue.offer(WorterbuchClient.instances.remove(ticket), Config.CONNECT_TIMEOUT, TimeUnit.SECONDS);
-			} catch (final InterruptedException e) {
-				onError.accept(
-						new WorterbuchException("Client thread interrupted while offreing wortebruch client", e));
-			}
+			latch.countDown();
 
 		};
 
-		final var client = new WebSocketClient();
-		try {
-			client.start();
-		} catch (final Exception e) {
-			onError.accept(new WorterbuchException("Could not start WS client", e));
-			return;
-		}
-
-		final var clientSocket = new WsClientSocket(client, uri, onError, authtoken);
+		final var clientSocket = new WsClientSocket(uri, onError, authtoken);
 
 		final var wb = new WorterbuchClient(exec, onWelcome, onDisconnect, onError, clientSocket);
+
+		final var error = new LinkedBlockingQueue<Optional<Throwable>>();
+		final Consumer<Throwable> preConnectErrorHandler = e -> {
+			try {
+				error.offer(Optional.of(e), Config.CONNECT_TIMEOUT, TimeUnit.SECONDS);
+			} catch (final InterruptedException e1) {
+				Thread.currentThread().interrupt();
+			}
+		};
+		final Consumer<Throwable> postConnectErrorHandler = e -> exec.execute(() -> wb.onError(e));
+		final var errorHandler = new AtomicReference<>(preConnectErrorHandler);
 
 		final var socket = new WebSocketAdapter() {
 			@Override
@@ -207,28 +208,37 @@ public class WorterbuchClient implements AutoCloseable {
 
 			@Override
 			public void onWebSocketConnect(final Session sess) {
-//				exec.execute(() -> wb.authenticate(authtoken));
+				errorHandler.set(postConnectErrorHandler);
+				try {
+					error.offer(Optional.empty(), Config.CONNECT_TIMEOUT, TimeUnit.SECONDS);
+				} catch (final InterruptedException e) {
+					Thread.currentThread().interrupt();
+				}
 			}
 
 			@Override
 			public void onWebSocketError(final Throwable cause) {
-				exec.execute(() -> wb.onError(cause));
+				errorHandler.get().accept(cause);
 			}
 		};
 
-		try {
-			clientSocket.open(socket);
+		clientSocket.open(socket);
 
-			WorterbuchClient.instances.put(ticket, wb);
-		} catch (final Exception e) {
-			onError.accept(new WorterbuchException("Could not start client.", e));
+		final var err = error.poll(Config.CONNECT_TIMEOUT, TimeUnit.SECONDS);
+		if (err.isPresent()) {
+			throw err.get();
 		}
+
+		latch.await(Config.CONNECT_TIMEOUT, TimeUnit.SECONDS);
+
+		return wb;
 	}
 
-	private static void initTcpWorterbuchClient(final URI uri, final Optional<String> authtoken,
+	private static WorterbuchClient initTcpWorterbuchClient(final URI uri, final Optional<String> authtoken,
 			final BiConsumer<Integer, String> onDisconnect, final Consumer<? super Throwable> onError,
-			final ScheduledExecutorService exec, final SynchronousQueue<WorterbuchClient> queue, final UUID ticket,
-			final Executor callbackExecutor) {
+			final ScheduledExecutorService exec, final Executor callbackExecutor) throws Throwable {
+
+		final var latch = new CountDownLatch(1);
 
 		final BiConsumer<Welcome, WorterbuchClient> onWelcome = (welcome, client) -> {
 
@@ -245,29 +255,19 @@ public class WorterbuchClient implements AutoCloseable {
 				client.authorize(authtoken);
 			}
 
-			try {
-				queue.offer(WorterbuchClient.instances.remove(ticket), Config.CONNECT_TIMEOUT, TimeUnit.SECONDS);
-			} catch (final InterruptedException e) {
-				onError.accept(
-						new WorterbuchException("Client thread interrupted while offreing wortebruch client", e));
-			}
+			latch.countDown();
 
 		};
 
-		try {
+		final var clientSocket = new TcpClientSocket(uri, onDisconnect, onError, Config.CHANNEL_BUFFER_SIZE);
 
-			final var clientSocket = new TcpClientSocket(uri, onDisconnect, onError, Config.CHANNEL_BUFFER_SIZE);
+		final var wb = new WorterbuchClient(exec, onWelcome, onDisconnect, onError, clientSocket);
 
-			final var wb = new WorterbuchClient(exec, onWelcome, onDisconnect, onError, clientSocket);
+		clientSocket.open(msg -> wb.messageReceived(msg, callbackExecutor), Config.SEND_TIMEOUT, TimeUnit.SECONDS);
 
-			clientSocket.open(msg -> wb.messageReceived(msg, callbackExecutor), Config.SEND_TIMEOUT, TimeUnit.SECONDS);
+		latch.await(Config.CONNECT_TIMEOUT, TimeUnit.SECONDS);
 
-			WorterbuchClient.instances.put(ticket, wb);
-
-		} catch (final IOException e) {
-			onError.accept(new WorterbuchException("Could not start client.", e));
-			return;
-		}
+		return wb;
 
 	}
 
@@ -276,7 +276,6 @@ public class WorterbuchClient implements AutoCloseable {
 	private final Consumer<? super Throwable> onError;
 	private final ClientSocket client;
 
-	private final Logger log = LoggerFactory.getLogger(WorterbuchClient.class);
 	private final AtomicLong transactionId = new AtomicLong();
 	private final ObjectMapper objectMapper = new ObjectMapper();
 
@@ -995,11 +994,11 @@ public class WorterbuchClient implements AutoCloseable {
 					}
 
 					if (!handled) {
-						this.log.error("Received error message from server: '{}'", errContainer);
+						WorterbuchClient.log.error("Received error message from server: '{}'", errContainer);
 					}
 
 				} catch (final JsonProcessingException e) {
-					this.log.error("Could not deserialize JSON '{}': {}", errContainer, e.getMessage());
+					WorterbuchClient.log.error("Could not deserialize JSON '{}': {}", errContainer, e.getMessage());
 				}
 				return;
 			}
@@ -1008,13 +1007,13 @@ public class WorterbuchClient implements AutoCloseable {
 			if (wcContainer != null) {
 				try {
 					final var welcome = this.objectMapper.readValue(wcContainer.toString(), Welcome.class);
-					this.log.info("Received welcome message.");
+					WorterbuchClient.log.info("Received welcome message.");
 					if (this.onWelcome != null) {
 						this.onWelcome.accept(welcome, this);
 						this.onWelcome = null;
 					}
 				} catch (final JsonProcessingException e) {
-					this.log.error("Could not deserialize JSON '{}': {}", wcContainer, e.getMessage());
+					WorterbuchClient.log.error("Could not deserialize JSON '{}': {}", wcContainer, e.getMessage());
 				}
 				return;
 			}
@@ -1085,7 +1084,8 @@ public class WorterbuchClient implements AutoCloseable {
 					}
 				} catch (final JsonProcessingException e) {
 
-					this.log.error("Could not deserialize JSON '{}': {}", childrenContainer, e.getMessage());
+					WorterbuchClient.log.error("Could not deserialize JSON '{}': {}", childrenContainer,
+							e.getMessage());
 
 					if (pendingLs != null) {
 						callbackExecutor.execute(() -> pendingLs.callback.accept(Collections.emptyList()));
@@ -1100,14 +1100,14 @@ public class WorterbuchClient implements AutoCloseable {
 			}
 
 		} catch (final JsonProcessingException e) {
-			this.log.error("Received invalid JSON message: '{}'", message);
+			WorterbuchClient.log.error("Received invalid JSON message: '{}'", message);
 		}
 
 	}
 
 	void onDisconnect(final int statusCode, final String reason) {
 		if (!this.closing) {
-			this.log.error("WebSocket connection to server closed.");
+			WorterbuchClient.log.error("WebSocket connection to server closed.");
 			this.pendingGets.clear();
 			this.pendingPGets.clear();
 			this.pendingDeletes.clear();
@@ -1164,7 +1164,7 @@ public class WorterbuchClient implements AutoCloseable {
 					final var value = this.objectMapper.<T>readValue(valueContainer.toString(), kvpType);
 					callbackExecutor.execute(() -> pendingGet.callback.accept(Optional.ofNullable(value)));
 				} catch (final JsonProcessingException e) {
-					this.log.error("Could not deserialize JSON '{}': {}", valueContainer, e.getMessage());
+					WorterbuchClient.log.error("Could not deserialize JSON '{}': {}", valueContainer, e.getMessage());
 					callbackExecutor.execute(() -> pendingGet.callback.accept(Optional.empty()));
 				}
 			} else {
@@ -1182,7 +1182,7 @@ public class WorterbuchClient implements AutoCloseable {
 					final var value = this.objectMapper.<T>readValue(deletedContainer.toString(), kvpType);
 					callbackExecutor.execute(() -> pendingDelete.callback.accept(Optional.ofNullable(value)));
 				} catch (final JsonProcessingException e) {
-					this.log.error("Could not deserialize JSON '{}': {}", deletedContainer, e.getMessage());
+					WorterbuchClient.log.error("Could not deserialize JSON '{}': {}", deletedContainer, e.getMessage());
 					callbackExecutor.execute(() -> pendingDelete.callback.accept(Optional.empty()));
 				}
 			} else {
@@ -1200,7 +1200,7 @@ public class WorterbuchClient implements AutoCloseable {
 					final var value = this.objectMapper.<T>readValue(valueContainer.toString(), kvpType);
 					callbackExecutor.execute(() -> subscription.callback.accept(Optional.ofNullable(value)));
 				} catch (final JsonProcessingException e) {
-					this.log.error("Could not deserialize JSON '{}': {}", valueContainer, e.getMessage());
+					WorterbuchClient.log.error("Could not deserialize JSON '{}': {}", valueContainer, e.getMessage());
 					callbackExecutor.execute(() -> subscription.callback.accept(Optional.empty()));
 				}
 			} else {
@@ -1219,7 +1219,7 @@ public class WorterbuchClient implements AutoCloseable {
 					final List<KeyValuePair<T>> kvps = this.objectMapper.readValue(kvpsContainer.toString(), kvpsType);
 					callbackExecutor.execute(() -> pendingPGet.callback.accept(kvps));
 				} catch (final JsonProcessingException e) {
-					this.log.error("Could not deserialize JSON '{}': {}", kvpsContainer, e.getMessage());
+					WorterbuchClient.log.error("Could not deserialize JSON '{}': {}", kvpsContainer, e.getMessage());
 					callbackExecutor.execute(() -> pendingPGet.callback.accept(Collections.emptyList()));
 				}
 			} else {
@@ -1239,7 +1239,7 @@ public class WorterbuchClient implements AutoCloseable {
 							kvpsType);
 					callbackExecutor.execute(() -> pendingPDelete.callback.accept(kvps));
 				} catch (final JsonProcessingException e) {
-					this.log.error("Could not deserialize JSON '{}': {}", deletedContainer, e.getMessage());
+					WorterbuchClient.log.error("Could not deserialize JSON '{}': {}", deletedContainer, e.getMessage());
 					callbackExecutor.execute(() -> pendingPDelete.callback.accept(Collections.emptyList()));
 				}
 			} else {
@@ -1259,7 +1259,7 @@ public class WorterbuchClient implements AutoCloseable {
 					final var event = new PStateEvent<>(kvps, null);
 					callbackExecutor.execute(() -> pSubscription.callback.accept(event));
 				} catch (final JsonProcessingException e) {
-					this.log.error("Could not deserialize JSON '{}': {}", kvpsContainer, e.getMessage());
+					WorterbuchClient.log.error("Could not deserialize JSON '{}': {}", kvpsContainer, e.getMessage());
 					callbackExecutor.execute(() -> pSubscription.callback.accept(new PStateEvent<>(null, null)));
 				}
 			} else if (deletedContainer != null) {
@@ -1269,7 +1269,7 @@ public class WorterbuchClient implements AutoCloseable {
 					final var event = new PStateEvent<>(null, kvps);
 					callbackExecutor.execute(() -> pSubscription.callback.accept(event));
 				} catch (final JsonProcessingException e) {
-					this.log.error("Could not deserialize JSON '{}': {}", deletedContainer, e.getMessage());
+					WorterbuchClient.log.error("Could not deserialize JSON '{}': {}", deletedContainer, e.getMessage());
 					callbackExecutor.execute(() -> pSubscription.callback.accept(new PStateEvent<>(null, null)));
 				}
 			}
@@ -1278,7 +1278,7 @@ public class WorterbuchClient implements AutoCloseable {
 
 	private void doClose() {
 		this.closing = true;
-		this.log.info("Closing worterbuch client.");
+		WorterbuchClient.log.info("Closing worterbuch client.");
 		try {
 			this.client.close();
 		} catch (final Exception e) {

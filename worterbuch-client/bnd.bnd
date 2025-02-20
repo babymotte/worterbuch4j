@@ -17,7 +17,8 @@ Bundle-License: AGPL-3.0-or-later; \
 
 Export-Package: \
 	net.bbmsoft.worterbuch.client,\
-	net.bbmsoft.worterbuch.client.collections
+	net.bbmsoft.worterbuch.client.collections,\
+	net.bbmsoft.worterbuch.client.error
 
 src = src, generated/model
 

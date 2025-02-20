@@ -27,8 +27,10 @@ import java.nio.ByteBuffer;
 import java.nio.channels.AsynchronousSocketChannel;
 import java.nio.channels.CompletionHandler;
 import java.nio.charset.StandardCharsets;
+import java.util.Optional;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.SynchronousQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -69,7 +71,11 @@ public class TcpClientSocket implements ClientSocket {
 
 	}
 
-	public void open(final Consumer<String> messageConsumer, final long writeTimeout, final TimeUnit timeoutUnit) {
+	public void open(final Consumer<String> messageConsumer, final long writeTimeout, final TimeUnit timeoutUnit)
+			throws Throwable {
+
+		final var error = new SynchronousQueue<Optional<Throwable>>();
+
 		this.socket.connect(new InetSocketAddress(this.uri.getHost(), this.uri.getPort()), this.socket,
 				new CompletionHandler<Void, AsynchronousSocketChannel>() {
 					@Override
@@ -82,20 +88,34 @@ public class TcpClientSocket implements ClientSocket {
 							TcpClientSocket.this.transmitLoop(writeTimeout, timeoutUnit);
 						}, "wortebruch-client-tcp-tx");
 						TcpClientSocket.this.transmitThread.start();
+
+						try {
+							error.offer(Optional.empty(), Config.CONNECT_TIMEOUT, TimeUnit.SECONDS);
+						} catch (final InterruptedException e) {
+							Thread.currentThread().interrupt();
+						}
 					}
 
 					@Override
 					public void failed(final Throwable exc, final AsynchronousSocketChannel channel) {
-						TcpClientSocket.this.onError.accept(exc);
+						try {
+							error.offer(Optional.of(exc), Config.CONNECT_TIMEOUT, TimeUnit.SECONDS);
+						} catch (final InterruptedException e) {
+							Thread.currentThread().interrupt();
+						}
 					}
 				});
+
+		final var res = error.poll(Config.CONNECT_TIMEOUT, TimeUnit.SECONDS);
+
+		if (res.isPresent()) {
+			throw res.get();
+		}
 	}
 
 	@Override
 	public void sendString(final String json) throws IOException, InterruptedException {
-
 		this.outs.put(json);
-
 	}
 
 	@Override
