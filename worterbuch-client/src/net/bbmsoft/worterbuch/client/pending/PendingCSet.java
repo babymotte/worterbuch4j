@@ -19,11 +19,8 @@
 
 package net.bbmsoft.worterbuch.client.pending;
 
-import java.lang.reflect.Type;
-import java.util.function.Consumer;
+import java.util.concurrent.CompletableFuture;
 
-import net.bbmsoft.worterbuch.client.api.TypedPStateEvent;
-
-public record PSubscription<T>(Consumer<TypedPStateEvent<T>> callback, Type type) {
+public record PendingCSet(CompletableFuture<Void> callback) {
 
 }

@@ -20,7 +20,6 @@
 package net.bbmsoft.worterbuch.client.collections;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
@@ -49,10 +48,10 @@ public class AsyncWorterbuchList<T> implements List<T> {
 
 	public void init() throws ExecutionException {
 		try {
-			final var value = this.wbClient.getArray(this.key, this.valueType).get();
+			final var value = this.wbClient.getList(this.key, this.valueType).get();
 			value.ifPresent(v -> {
 				this.localCache.clear();
-				this.localCache.addAll(Arrays.asList(v));
+				this.localCache.addAll(v);
 			});
 		} catch (final InterruptedException e) {
 			Thread.currentThread().interrupt();

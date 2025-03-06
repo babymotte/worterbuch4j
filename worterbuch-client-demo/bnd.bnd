@@ -11,7 +11,8 @@ Bundle-Version: 1.0.0.${tstamp}
 	org.eclipse.jetty.websocket.client,\
 	org.eclipse.jetty.websocket.common,\
 	worterbuch-client-api,\
-	spotbugs-annotations
+	spotbugs-annotations,\
+	com.fasterxml.jackson.core.jackson-databind
 
 -includeresource: resources
 

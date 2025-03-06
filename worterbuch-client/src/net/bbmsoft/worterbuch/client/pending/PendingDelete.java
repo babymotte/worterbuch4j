@@ -19,9 +19,10 @@
 
 package net.bbmsoft.worterbuch.client.pending;
 
+import java.lang.reflect.Type;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 
-public record PendingDelete<T>(CompletableFuture<Optional<T>> callback, Class<T> type) {
+public record PendingDelete<T>(CompletableFuture<Optional<T>> callback, Type type) {
 
 }

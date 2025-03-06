@@ -1,4 +1,4 @@
-package net.bbmsoft.worterbuch.client.api;
+package net.bbmsoft.worterbuch.client.error;
 
 import net.bbmsoft.worterbuch.client.model.Err;
 
@@ -11,4 +11,10 @@ public class WorterbuchError extends Exception {
 	public WorterbuchError(final Err errorMessage) {
 		this.errorMessage = errorMessage;
 	}
+
+	@Override
+	public String toString() {
+		return "WorterbuchError [errorMessage=" + this.errorMessage + "]";
+	}
+
 }

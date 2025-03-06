@@ -11,6 +11,7 @@
 -runrequires: \
 	osgi.identity;filter:='(osgi.identity=org.apache.felix.gogo.shell)',\
 	osgi.identity;filter:='(osgi.identity=org.apache.felix.gogo.command)',\
+	bnd.identity;id='org.apache.felix.scr',\
 	bnd.identity;id=worterbuch-client-demo,\
 	bnd.identity;id='org.apache.felix.gogo.runtime',\
 	bnd.identity;id='org.osgi.service.metatype',\

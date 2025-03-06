@@ -19,12 +19,14 @@
 
 package net.bbmsoft.worterbuch.client.api;
 
+import java.lang.reflect.Type;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.Supplier;
 
 import org.osgi.annotation.versioning.ProviderType;
 
@@ -46,11 +48,17 @@ public interface WorterbuchClient extends AutoCloseable {
 
 	<T> CompletableFuture<Optional<T>> get(String key, Class<T> type);
 
-	<T> CompletableFuture<Optional<T[]>> getArray(String key, Class<T> elementType);
+	<T> CompletableFuture<Optional<T>> get(String key, Type type);
+
+	<T> CompletableFuture<Optional<List<T>>> getList(String key, Class<T> elementType);
 
 	<T> CompletableFuture<List<TypedKeyValuePair<T>>> pGet(String pattern, Class<T> type);
 
+	<T> CompletableFuture<List<TypedKeyValuePair<T>>> pGet(String pattern, Type type);
+
 	<T> CompletableFuture<Optional<T>> delete(String key, Class<T> type);
+
+	<T> CompletableFuture<Optional<T>> delete(String key, Type type);
 
 	void delete(String key);
 
@@ -64,18 +72,25 @@ public interface WorterbuchClient extends AutoCloseable {
 
 	<T> long subscribe(String key, boolean unique, boolean liveOnly, Class<T> type, Consumer<Optional<T>> callback);
 
+	<T> long subscribe(String key, boolean unique, boolean liveOnly, Type type, Consumer<Optional<T>> callback);
+
 	default <T> long subscribe(final String key, final boolean unique, final boolean liveOnly, final Class<T> type,
 			final Consumer<Optional<T>> callback, final Consumer<? super Throwable> onError, final Executor executor) {
 		return this.subscribe(key, unique, liveOnly, type, v -> executor.execute(() -> callback.accept(v)));
 	}
 
-	<T> long subscribeArray(String key, boolean unique, boolean liveOnly, Class<T> elementType,
-			Consumer<Optional<T[]>> callback);
+	default <T> long subscribe(final String key, final boolean unique, final boolean liveOnly, final Type type,
+			final Consumer<Optional<T>> callback, final Consumer<? super Throwable> onError, final Executor executor) {
+		return this.<T>subscribe(key, unique, liveOnly, type, v -> executor.execute(() -> callback.accept(v)));
+	}
 
-	default <T> long subscribeArray(final String key, final boolean unique, final boolean liveOnly,
-			final Class<T> elementType, final Consumer<Optional<T[]>> callback,
+	<T> long subscribeList(String key, boolean unique, boolean liveOnly, Class<T> elementType,
+			Consumer<Optional<List<T>>> callback);
+
+	default <T> long subscribeList(final String key, final boolean unique, final boolean liveOnly,
+			final Class<T> elementType, final Consumer<Optional<List<T>>> callback,
 			final Consumer<? super Throwable> onError, final Executor executor) {
-		return this.subscribeArray(key, unique, liveOnly, elementType, v -> executor.execute(() -> callback.accept(v)));
+		return this.subscribeList(key, unique, liveOnly, elementType, v -> executor.execute(() -> callback.accept(v)));
 	}
 
 	<T> long pSubscribe(String pattern, boolean unique, boolean liveOnly, Optional<Long> aggregateEvents, Class<T> type,
@@ -85,6 +100,16 @@ public interface WorterbuchClient extends AutoCloseable {
 			final Optional<Long> aggregateEvents, final Class<T> type, final Consumer<TypedPStateEvent<T>> callback,
 			final Executor executor) {
 		return this.pSubscribe(pattern, unique, liveOnly, aggregateEvents, type,
+				v -> executor.execute(() -> callback.accept(v)));
+	}
+
+	<T> long pSubscribe(String pattern, boolean unique, boolean liveOnly, Optional<Long> aggregateEvents, Type type,
+			Consumer<TypedPStateEvent<T>> callback);
+
+	default <T> long pSubscribe(final String pattern, final boolean unique, final boolean liveOnly,
+			final Optional<Long> aggregateEvents, final Type type, final Consumer<TypedPStateEvent<T>> callback,
+			final Executor executor) {
+		return this.<T>pSubscribe(pattern, unique, liveOnly, aggregateEvents, type,
 				v -> executor.execute(() -> callback.accept(v)));
 	}
 
@@ -103,20 +128,34 @@ public interface WorterbuchClient extends AutoCloseable {
 
 	String getClientId();
 
-	CompletableFuture<Optional<String[]>> getGraveGoods();
+	CompletableFuture<Optional<List<String>>> getGraveGoods();
 
-	CompletableFuture<Optional<KeyValuePair[]>> getLastWill();
+	CompletableFuture<Optional<List<KeyValuePair>>> getLastWill();
 
-	void setGraveGoods(String[] graveGoods);
+	void setGraveGoods(List<String> graveGoods) throws WorterbuchException;
 
-	void setLastWill(KeyValuePair[] lastWill);
+	void setLastWill(List<KeyValuePair> lastWill) throws WorterbuchException;
+
+	void updateGraveGoods(Consumer<List<String>> update);
+
+	void updateLastWill(Consumer<List<KeyValuePair>> update);
 
 	void setClientName(String name);
 
-	<T> CompletableFuture<Boolean> cSet(String key, T value, long version);
+	<T> CompletableFuture<Void> cSet(String key, T value, long version);
 
-	<T> CompletableFuture<Tuple<T, Long>> cGet(String key, T value, Class<T> type);
+	<T> CompletableFuture<Tuple<Optional<T>, Long>> cGet(String key, Class<T> type);
 
-	<T> void update(String key, Function<T, T> transform, Class<T> type);
+	<T> CompletableFuture<Tuple<Optional<T>, Long>> cGet(String key, Type type);
+
+	<T, V> void update(String key, Function<Optional<T>, V> transform, Class<T> type);
+
+	<T, V> void update(String key, Function<Optional<T>, V> transform, Type type);
+
+	<T> void update(String key, Supplier<T> seed, Consumer<T> update, Class<T> type);
+
+	<T> void update(String key, Supplier<T> seed, Consumer<T> update, Type type);
+
+	<T> void updateList(String key, Consumer<List<T>> update, Class<T> type);
 
 }

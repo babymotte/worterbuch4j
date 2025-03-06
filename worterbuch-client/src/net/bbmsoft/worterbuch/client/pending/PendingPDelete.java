@@ -19,11 +19,12 @@
 
 package net.bbmsoft.worterbuch.client.pending;
 
+import java.lang.reflect.Type;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 
 import net.bbmsoft.worterbuch.client.api.TypedKeyValuePair;
 
-public record PendingPDelete<T>(CompletableFuture<List<TypedKeyValuePair<T>>> callback, Class<T> type) {
+public record PendingPDelete<T>(CompletableFuture<List<TypedKeyValuePair<T>>> callback, Type type) {
 
 }

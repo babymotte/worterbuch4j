@@ -20,10 +20,11 @@
 package net.bbmsoft.worterbuch.client.pending;
 
 import java.lang.reflect.Type;
-import java.util.function.Consumer;
+import java.util.Optional;
+import java.util.concurrent.CompletableFuture;
 
-import net.bbmsoft.worterbuch.client.api.TypedPStateEvent;
+import net.bbmsoft.worterbuch.client.api.util.Tuple;
 
-public record PSubscription<T>(Consumer<TypedPStateEvent<T>> callback, Type type) {
+public record PendingCGet<T>(CompletableFuture<Tuple<Optional<T>, Long>> callback, Type type) {
 
 }

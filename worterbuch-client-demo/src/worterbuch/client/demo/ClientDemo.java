@@ -22,8 +22,11 @@ package worterbuch.client.demo;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.TreeSet;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeoutException;
 
@@ -34,6 +37,8 @@ import org.osgi.service.component.annotations.Component;
 import org.osgi.service.component.annotations.Deactivate;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import com.fasterxml.jackson.databind.type.TypeFactory;
 
 import net.bbmsoft.worterbuch.client.WorterbuchClientImpl;
 import net.bbmsoft.worterbuch.client.api.WorterbuchException;
@@ -93,7 +98,7 @@ public class ClientDemo {
 	@Deactivate
 	public void deactivate() {
 		this.running = false;
-		this.thread.interrupt();
+//		this.thread.interrupt();
 	}
 
 	private void run()
@@ -107,14 +112,27 @@ public class ClientDemo {
 		final var wb = authToken != null ? WorterbuchClientImpl.connect(uris, authToken, this::exit, this::error)
 				: WorterbuchClientImpl.connect(uris, this::exit, this::error);
 
+		wb.set("testapp/state/running", true);
+
 		wb.pLs("$SYS/?/?").thenAccept(System.err::println);
 
-		wb.subscribeArray("testapp/state/collections/asyncList", true, true, HelloWorld.class, this::printOptional);
+		wb.subscribeList("testapp/state/collections/asyncList", true, true, HelloWorld.class, this::printOptional);
 
 		final var list = new AsyncWorterbuchList<>(wb, "testapp", "collections", "asyncList", HelloWorld.class);
 
-		wb.setLastWill(new KeyValuePair[] { new KeyValuePair("testapp/state/running", false) });
-		wb.setGraveGoods(new String[] { "testapp/state/collections/asyncList" });
+		wb.setLastWill(Collections.emptyList());
+		wb.setGraveGoods(Collections.emptyList());
+
+		wb.updateLastWill(will -> will.add(new KeyValuePair("testapp/state/running", false)));
+		wb.updateGraveGoods(gg -> gg.add("testapp/state/#"));
+
+		final var type = TypeFactory.defaultInstance().constructCollectionType(TreeSet.class, Integer.class);
+		for (var i = 0; i < 10; i++) {
+			final var it = i;
+			new Thread(() -> {
+				wb.update("testapp/state/cas-list", TreeSet::new, l -> l.add(it), type);
+			}).start();
+		}
 
 		var counter = list.size() - 1;
 		var inverted = counter >= 2;
@@ -170,7 +188,7 @@ public class ClientDemo {
 		this.exit(-1, th.getMessage());
 	}
 
-	private <T> void printOptional(final Optional<T[]> optional) {
+	private <T> void printOptional(final Optional<List<T>> optional) {
 		optional.ifPresentOrElse(
 				it -> System.err.println(String.join(", ", Arrays.asList(it).stream().map(Object::toString).toList())),
 				() -> System.err.println("empty"));

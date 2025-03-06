@@ -20,9 +20,9 @@
 package net.bbmsoft.worterbuch.client;
 
 import java.io.IOException;
-import java.lang.reflect.GenericArrayType;
 import java.lang.reflect.Type;
 import java.net.URI;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -30,6 +30,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
 import java.util.concurrent.LinkedBlockingQueue;
@@ -42,6 +43,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.Supplier;
 
 import org.eclipse.jetty.websocket.api.Session;
 import org.eclipse.jetty.websocket.api.WebSocketAdapter;
@@ -59,15 +61,17 @@ import net.bbmsoft.worterbuch.client.api.Constants;
 import net.bbmsoft.worterbuch.client.api.TypedKeyValuePair;
 import net.bbmsoft.worterbuch.client.api.TypedPStateEvent;
 import net.bbmsoft.worterbuch.client.api.WorterbuchClient;
-import net.bbmsoft.worterbuch.client.api.WorterbuchError;
 import net.bbmsoft.worterbuch.client.api.WorterbuchException;
 import net.bbmsoft.worterbuch.client.api.util.Tuple;
 import net.bbmsoft.worterbuch.client.error.SerializationFailed;
+import net.bbmsoft.worterbuch.client.error.WorterbuchError;
 import net.bbmsoft.worterbuch.client.impl.Config;
 import net.bbmsoft.worterbuch.client.impl.TcpClientSocket;
 import net.bbmsoft.worterbuch.client.impl.WrappingExecutor;
 import net.bbmsoft.worterbuch.client.impl.WsClientSocket;
 import net.bbmsoft.worterbuch.client.model.AuthorizationRequest;
+import net.bbmsoft.worterbuch.client.model.CGet;
+import net.bbmsoft.worterbuch.client.model.CSet;
 import net.bbmsoft.worterbuch.client.model.ClientMessage;
 import net.bbmsoft.worterbuch.client.model.Delete;
 import net.bbmsoft.worterbuch.client.model.Err;
@@ -90,6 +94,8 @@ import net.bbmsoft.worterbuch.client.model.UnsubscribeLs;
 import net.bbmsoft.worterbuch.client.model.Welcome;
 import net.bbmsoft.worterbuch.client.pending.LsSubscription;
 import net.bbmsoft.worterbuch.client.pending.PSubscription;
+import net.bbmsoft.worterbuch.client.pending.PendingCGet;
+import net.bbmsoft.worterbuch.client.pending.PendingCSet;
 import net.bbmsoft.worterbuch.client.pending.PendingDelete;
 import net.bbmsoft.worterbuch.client.pending.PendingGet;
 import net.bbmsoft.worterbuch.client.pending.PendingLsState;
@@ -308,6 +314,8 @@ public class WorterbuchClientImpl implements WorterbuchClient {
 	private final ObjectMapper objectMapper = new ObjectMapper();
 
 	private final Map<Long, PendingGet<?>> pendingGets = new ConcurrentHashMap<>();
+	private final Map<Long, PendingCGet<?>> pendingCGets = new ConcurrentHashMap<>();
+	private final Map<Long, PendingCSet> pendingCSets = new ConcurrentHashMap<>();
 	private final Map<Long, PendingPGet<?>> pendingPGets = new ConcurrentHashMap<>();
 	private final Map<Long, PendingSPubInit<?>> pendingSPubInits = new ConcurrentHashMap<>();
 	private final Map<Long, PendingDelete<?>> pendingDeletes = new ConcurrentHashMap<>();
@@ -396,6 +404,11 @@ public class WorterbuchClientImpl implements WorterbuchClient {
 
 	@Override
 	public <T> CompletableFuture<Optional<T>> get(final String key, final Class<T> type) {
+		return this.get(key, (Type) type);
+	}
+
+	@Override
+	public <T> CompletableFuture<Optional<T>> get(final String key, final Type type) {
 		final var fut = new CompletableFuture<Optional<T>>();
 		final var tid = this.acquireTid();
 		String json;
@@ -409,8 +422,8 @@ public class WorterbuchClientImpl implements WorterbuchClient {
 	}
 
 	@Override
-	public <T> CompletableFuture<Optional<T[]>> getArray(final String key, final Class<T> elementType) {
-		final var fut = new CompletableFuture<Optional<T[]>>();
+	public <T> CompletableFuture<Optional<List<T>>> getList(final String key, final Class<T> elementType) {
+		final var fut = new CompletableFuture<Optional<List<T>>>();
 		final var tid = this.acquireTid();
 		String json;
 		try {
@@ -418,12 +431,18 @@ public class WorterbuchClientImpl implements WorterbuchClient {
 		} catch (final JsonProcessingException e) {
 			throw new SerializationFailed(e);
 		}
-		this.exec.execute(() -> this.doGet(tid, json, (GenericArrayType) () -> elementType, fut));
+		this.exec.execute(() -> this.doGet(tid, json,
+				TypeFactory.defaultInstance().constructCollectionType(List.class, elementType), fut));
 		return fut;
 	}
 
 	@Override
 	public <T> CompletableFuture<List<TypedKeyValuePair<T>>> pGet(final String pattern, final Class<T> type) {
+		return this.pGet(pattern, (Type) type);
+	}
+
+	@Override
+	public <T> CompletableFuture<List<TypedKeyValuePair<T>>> pGet(final String pattern, final Type type) {
 		final var fut = new CompletableFuture<List<TypedKeyValuePair<T>>>();
 		final var tid = this.acquireTid();
 		String json;
@@ -438,6 +457,11 @@ public class WorterbuchClientImpl implements WorterbuchClient {
 
 	@Override
 	public <T> CompletableFuture<Optional<T>> delete(final String key, final Class<T> type) {
+		return this.delete(key, (Type) type);
+	}
+
+	@Override
+	public <T> CompletableFuture<Optional<T>> delete(final String key, final Type type) {
 		final var fut = new CompletableFuture<Optional<T>>();
 		final var tid = this.acquireTid();
 		String json;
@@ -505,6 +529,12 @@ public class WorterbuchClientImpl implements WorterbuchClient {
 	@Override
 	public <T> long subscribe(final String key, final boolean unique, final boolean liveOnly, final Class<T> type,
 			final Consumer<Optional<T>> callback) {
+		return this.subscribe(key, unique, liveOnly, (Type) type, callback);
+	}
+
+	@Override
+	public <T> long subscribe(final String key, final boolean unique, final boolean liveOnly, final Type type,
+			final Consumer<Optional<T>> callback) {
 		final var tid = this.acquireTid();
 		String json;
 		try {
@@ -517,8 +547,8 @@ public class WorterbuchClientImpl implements WorterbuchClient {
 	}
 
 	@Override
-	public <T> long subscribeArray(final String key, final boolean unique, final boolean liveOnly,
-			final Class<T> elementType, final Consumer<Optional<T[]>> callback) {
+	public <T> long subscribeList(final String key, final boolean unique, final boolean liveOnly,
+			final Class<T> elementType, final Consumer<Optional<List<T>>> callback) {
 		final var tid = this.acquireTid();
 		String json;
 		try {
@@ -526,14 +556,21 @@ public class WorterbuchClientImpl implements WorterbuchClient {
 		} catch (final JsonProcessingException e) {
 			throw new SerializationFailed(e);
 		}
-		this.exec.execute(
-				() -> this.doSubscribe(tid, json, (GenericArrayType) () -> elementType, callback, this.onError));
+		this.exec.execute(() -> this.doSubscribe(tid, json,
+				TypeFactory.defaultInstance().constructCollectionType(List.class, elementType), callback,
+				this.onError));
 		return tid;
 	}
 
 	@Override
 	public <T> long pSubscribe(final String pattern, final boolean unique, final boolean liveOnly,
 			final Optional<Long> aggregateEvents, final Class<T> type, final Consumer<TypedPStateEvent<T>> callback) {
+		return this.pSubscribe(pattern, unique, liveOnly, aggregateEvents, (Type) type, callback);
+	}
+
+	@Override
+	public <T> long pSubscribe(final String pattern, final boolean unique, final boolean liveOnly,
+			final Optional<Long> aggregateEvents, final Type type, final Consumer<TypedPStateEvent<T>> callback) {
 		final var tid = this.acquireTid();
 		String json;
 		try {
@@ -541,7 +578,7 @@ public class WorterbuchClientImpl implements WorterbuchClient {
 		} catch (final JsonProcessingException e) {
 			throw new SerializationFailed(e);
 		}
-		this.exec.execute(() -> this.doPSubscribe(tid, json, type, callback, this.onError));
+		this.exec.execute(() -> this.<T>doPSubscribe(tid, json, type, callback, this.onError));
 		return tid;
 	}
 
@@ -581,21 +618,93 @@ public class WorterbuchClientImpl implements WorterbuchClient {
 	}
 
 	@Override
-	public <T> CompletableFuture<Tuple<T, Long>> cGet(final String key, final T value, final Class<T> type) {
-		// TODO Auto-generated method stub
-		throw new UnsupportedOperationException();
+	public <T> CompletableFuture<Tuple<Optional<T>, Long>> cGet(final String key, final Class<T> type) {
+		return this.cGet(key, (Type) type);
 	}
 
 	@Override
-	public <T> CompletableFuture<Boolean> cSet(final String key, final T value, final long version) {
-		// TODO Auto-generated method stub
-		throw new UnsupportedOperationException();
+	public <T> CompletableFuture<Tuple<Optional<T>, Long>> cGet(final String key, final Type type) {
+		return this.doCGet(key, type);
+	}
+
+	private <T> CompletableFuture<Tuple<Optional<T>, Long>> doCGet(final String key, final Type type) {
+		final var fut = new CompletableFuture<Tuple<Optional<T>, Long>>();
+		final var tid = this.acquireTid();
+		String json;
+		try {
+			json = this.toJson(this.cGetMessage(tid, key));
+		} catch (final JsonProcessingException e) {
+			throw new SerializationFailed(e);
+		}
+		this.exec.execute(() -> this.doCGet(tid, json, type, fut));
+		return fut;
 	}
 
 	@Override
-	public <T> void update(final String key, final Function<T, T> transform, final Class<T> type) {
-		// TODO Auto-generated method stub
-		throw new UnsupportedOperationException();
+	public <T> CompletableFuture<Void> cSet(final String key, final T value, final long version) {
+		final var fut = new CompletableFuture<Void>();
+		final var tid = this.acquireTid();
+		String json;
+		try {
+			json = this.toJson(this.cSetMessage(tid, key, value, version));
+		} catch (final JsonProcessingException e) {
+			throw new SerializationFailed(e);
+		}
+		this.exec.execute(() -> this.doCSet(tid, json, fut));
+		return fut;
+	}
+
+	@Override
+	public <T, V> void update(final String key, final Function<Optional<T>, V> transform, final Class<T> type) {
+
+	}
+
+	@Override
+	public <T, V> void update(final String key, final Function<Optional<T>, V> transform, final Type type) {
+		this.tryUpdate(key, transform, type, 0);
+	}
+
+	@Override
+	public <T> void update(final String key, final Supplier<T> seed, final Consumer<T> update, final Class<T> type) {
+		this.<T>update(key, seed, update, (Type) type);
+	}
+
+	@Override
+	public <T> void update(final String key, final Supplier<T> seed, final Consumer<T> update, final Type type) {
+		this.<T, T>tryUpdate(key, v -> {
+			final var val = v.orElseGet(seed);
+			update.accept(val);
+			return val;
+		}, type, 0);
+	}
+
+	@Override
+	public <T> void updateList(final String key, final Consumer<List<T>> update, final Class<T> type) {
+		this.<List<T>, List<T>>tryUpdate(key, arr -> {
+			final var list = arr.isPresent() ? new ArrayList<T>(arr.get()) : new ArrayList<T>();
+			update.accept(list);
+			return list;
+		}, TypeFactory.defaultInstance().constructCollectionType(List.class, type), 0);
+	}
+
+	private <T, V> void tryUpdate(final String key, final Function<Optional<T>, V> transform, final Type type,
+			final int counter) {
+
+		if (counter > 100) {
+			WorterbuchClientImpl.log.error("Unsuccessfully tried to update {} 100 times, giving up.", key);
+			return;
+		}
+
+		// TODO cache value so we don't have to get it from the server every time
+		this.<T>doCGet(key, type).thenAccept(v -> {
+			final var value = v.first();
+			final var version = v.second();
+			final var newValue = transform.apply(value);
+			this.cSet(key, newValue, version).exceptionally(ex -> {
+				this.tryUpdate(key, transform, type, counter + 1);
+				return null;
+			});
+		});
 	}
 
 	@Override
@@ -610,31 +719,66 @@ public class WorterbuchClientImpl implements WorterbuchClient {
 	}
 
 	@Override
-	public CompletableFuture<Optional<String[]>> getGraveGoods() {
-		return this.getArray("$SYS/clients/" + this.getClientId() + "/graveGoods", String.class);
+	public CompletableFuture<Optional<List<String>>> getGraveGoods() {
+		return this.getList("$SYS/clients/" + this.getClientId() + "/graveGoods", String.class);
 	}
 
 	@Override
-	public CompletableFuture<Optional<KeyValuePair[]>> getLastWill() {
-		return this.getArray("$SYS/clients/" + this.getClientId() + "/lastWill", KeyValuePair.class);
+	public CompletableFuture<Optional<List<KeyValuePair>>> getLastWill() {
+		return this.getList("$SYS/clients/" + this.getClientId() + "/lastWill", KeyValuePair.class);
 	}
 
 	@Override
-	public void setGraveGoods(final String[] graveGoods) {
-		if (graveGoods == null) {
-			this.delete("$SYS/clients/" + this.getClientId() + "/graveGoods");
-		} else {
-			this.set("$SYS/clients/" + this.getClientId() + "/graveGoods", graveGoods);
+	public void setGraveGoods(final List<String> graveGoods) throws WorterbuchException {
+
+		try {
+//			this.cSet("$SYS/clients/" + this.getClientId() + "/graveGoods", graveGoods, 0).get(5, TimeUnit.SECONDS);
+			this.cSet("$SYS/clients/" + this.getClientId() + "/graveGoods", graveGoods, 0).get();
+		} catch (final InterruptedException e) {
+			Thread.currentThread().interrupt();
+			this.onError.accept(e);
+		} catch (final ExecutionException e) {
+			if (e.getCause() instanceof final WorterbuchError err) {
+				if (err.errorMessage.getErrorCode() == 0b00010010) {
+					throw new WorterbuchException(
+							"grave goods are already set, please use updateGraveGoods(…) instead to make sure nothing gets accidentally overwritten");
+				}
+			}
+			this.onError.accept(e);
+		}
+//		catch (final TimeoutException e) {
+//			this.onError.accept(e);
+//		}
+	}
+
+	@Override
+	public void updateGraveGoods(final Consumer<List<String>> update) {
+		this.updateList("$SYS/clients/" + this.getClientId() + "/graveGoods", update, String.class);
+	}
+
+	@Override
+	public void setLastWill(final List<KeyValuePair> lastWill) throws WorterbuchException {
+		try {
+			this.cSet("$SYS/clients/" + this.getClientId() + "/lastWill", lastWill, 0).get(5, TimeUnit.SECONDS);
+		} catch (final InterruptedException e) {
+			Thread.currentThread().interrupt();
+			this.onError.accept(e);
+		} catch (final ExecutionException e) {
+			if (e.getCause() instanceof final WorterbuchError err) {
+				if (err.errorMessage.getErrorCode() == 0b00010010) {
+					throw new WorterbuchException(
+							"last will is already set, please use updateLastWill(…) instead to make sure nothing gets accidentally overwritten");
+				}
+			}
+			this.onError.accept(e);
+		} catch (final TimeoutException e) {
+			this.onError.accept(e);
 		}
 	}
 
 	@Override
-	public void setLastWill(final KeyValuePair[] lastWill) {
-		if (lastWill == null) {
-			this.delete("$SYS/clients/" + this.getClientId() + "/lastWill");
-		} else {
-			this.set("$SYS/clients/" + this.getClientId() + "/lastWill", lastWill);
-		}
+	public void updateLastWill(final Consumer<List<KeyValuePair>> update) {
+		this.updateList("$SYS/clients/" + this.getClientId() + "/lastWill", update, KeyValuePair.class);
 	}
 
 	@Override
@@ -643,10 +787,7 @@ public class WorterbuchClientImpl implements WorterbuchClient {
 	}
 
 	private <T> ClientMessage setMessage(final long tid, final String key, final T value) {
-		final var set = new Set();
-		set.setTransactionId(tid);
-		set.setKey(key);
-		set.setValue(value);
+		final var set = new Set(tid, key, value);
 		final var msg = new ClientMessage();
 		msg.setSet(set);
 		return msg;
@@ -657,10 +798,7 @@ public class WorterbuchClientImpl implements WorterbuchClient {
 	}
 
 	private <T> ClientMessage publishMessage(final long tid, final String key, final T value) {
-		final var pub = new Publish();
-		pub.setTransactionId(tid);
-		pub.setKey(key);
-		pub.setValue(value);
+		final var pub = new Publish(tid, key, value);
 		final var msg = new ClientMessage();
 		msg.setPublish(pub);
 		return msg;
@@ -671,9 +809,7 @@ public class WorterbuchClientImpl implements WorterbuchClient {
 	}
 
 	private ClientMessage initPubStreamMessage(final long tid, final String key) {
-		final var sPubInit = new SPubInit();
-		sPubInit.setTransactionId(tid);
-		sPubInit.setKey(key);
+		final var sPubInit = new SPubInit(tid, key);
 		final var msg = new ClientMessage();
 		msg.setsPubInit(sPubInit);
 		return msg;
@@ -685,9 +821,7 @@ public class WorterbuchClientImpl implements WorterbuchClient {
 	}
 
 	private <T> ClientMessage streamPubMessage(final long tid, final T value) {
-		final var sPub = new SPub();
-		sPub.setTransactionId(tid);
-		sPub.setValue(value);
+		final var sPub = new SPub(tid, value);
 		final var msg = new ClientMessage();
 		msg.setsPub(sPub);
 		return msg;
@@ -698,11 +832,23 @@ public class WorterbuchClientImpl implements WorterbuchClient {
 	}
 
 	private ClientMessage getMessage(final long tid, final String key) {
-		final var get = new Get();
-		get.setTransactionId(tid);
-		get.setKey(key);
+		final var get = new Get(tid, key);
 		final var msg = new ClientMessage();
 		msg.setGet(get);
+		return msg;
+	}
+
+	private ClientMessage cGetMessage(final long tid, final String key) {
+		final var cGet = new CGet(tid, key);
+		final var msg = new ClientMessage();
+		msg.setcGet(cGet);
+		return msg;
+	}
+
+	private <T> ClientMessage cSetMessage(final long tid, final String key, final T value, final Long version) {
+		final var cSet = new CSet(tid, key, value, version);
+		final var msg = new ClientMessage();
+		msg.setcSet(cSet);
 		return msg;
 	}
 
@@ -712,31 +858,38 @@ public class WorterbuchClientImpl implements WorterbuchClient {
 		this.sendMessage(jsonMessage, fut::completeExceptionally);
 	}
 
+	private <T> void doCGet(final long tid, final String jsonMessage, final Type type,
+			final CompletableFuture<Tuple<Optional<T>, Long>> fut) {
+		this.pendingCGets.put(tid, new PendingCGet<>(fut, type));
+		this.sendMessage(jsonMessage, fut::completeExceptionally);
+	}
+
+	private <T> void doCSet(final long tid, final String jsonMessage, final CompletableFuture<Void> fut) {
+		this.pendingCSets.put(tid, new PendingCSet(fut));
+		this.sendMessage(jsonMessage, fut::completeExceptionally);
+	}
+
 	private ClientMessage pgetMessage(final long tid, final String pattern) {
-		final var pget = new PGet();
-		pget.setTransactionId(tid);
-		pget.setRequestPattern(pattern);
+		final var pget = new PGet(tid, pattern);
 		final var msg = new ClientMessage();
 		msg.setpGet(pget);
 		return msg;
 	}
 
-	private <T> void doPGet(final long tid, final String jsonMessage, final Class<T> type,
+	private <T> void doPGet(final long tid, final String jsonMessage, final Type type,
 			final CompletableFuture<List<TypedKeyValuePair<T>>> fut) {
 		this.pendingPGets.put(tid, new PendingPGet<>(fut, type));
 		this.sendMessage(jsonMessage, fut::completeExceptionally);
 	}
 
 	private ClientMessage deleteMessage(final long tid, final String key) {
-		final var del = new Delete();
-		del.setTransactionId(tid);
-		del.setKey(key);
+		final var del = new Delete(tid, key);
 		final var msg = new ClientMessage();
 		msg.setDelete(del);
 		return msg;
 	}
 
-	private <T> void doDelete(final long tid, final String jsonMessage, final Class<T> type,
+	private <T> void doDelete(final long tid, final String jsonMessage, final Type type,
 			final CompletableFuture<Optional<T>> fut) {
 		if (type != null) {
 			this.pendingDeletes.put(tid, new PendingDelete<>(fut, Objects.requireNonNull(type)));
@@ -745,10 +898,7 @@ public class WorterbuchClientImpl implements WorterbuchClient {
 	}
 
 	private ClientMessage pDeleteMessage(final long tid, final String pattern, final boolean quiet) {
-		final var pdel = new PDelete();
-		pdel.setTransactionId(tid);
-		pdel.setRequestPattern(pattern);
-		pdel.setQuiet(quiet);
+		final var pdel = new PDelete(tid, pattern, quiet);
 		final var msg = new ClientMessage();
 		msg.setpDelete(pdel);
 		return msg;
@@ -763,9 +913,7 @@ public class WorterbuchClientImpl implements WorterbuchClient {
 	}
 
 	private ClientMessage lsMessage(final long tid, final String parent) {
-		final var ls = new Ls();
-		ls.setTransactionId(tid);
-		ls.setParent(parent);
+		final var ls = new Ls(tid, parent);
 		final var msg = new ClientMessage();
 		msg.setLs(ls);
 		return msg;
@@ -777,9 +925,7 @@ public class WorterbuchClientImpl implements WorterbuchClient {
 	}
 
 	private ClientMessage pLsMessage(final long tid, final String parentPattern) {
-		final var pLs = new PLs();
-		pLs.setTransactionId(tid);
-		pLs.setParentPattern(parentPattern);
+		final var pLs = new PLs(tid, parentPattern);
 		final var msg = new ClientMessage();
 		msg.setpLs(pLs);
 		return msg;
@@ -792,11 +938,7 @@ public class WorterbuchClientImpl implements WorterbuchClient {
 
 	private ClientMessage subscribeMessage(final long tid, final String key, final boolean unique,
 			final boolean liveOnly) {
-		final var sub = new Subscribe();
-		sub.setTransactionId(tid);
-		sub.setKey(key);
-		sub.setUnique(unique);
-		sub.setLiveOnly(liveOnly);
+		final var sub = new Subscribe(tid, key, unique, liveOnly);
 		final var msg = new ClientMessage();
 		msg.setSubscribe(sub);
 		return msg;
@@ -810,26 +952,20 @@ public class WorterbuchClientImpl implements WorterbuchClient {
 
 	private ClientMessage pSubMessage(final long tid, final String pattern, final boolean unique,
 			final boolean liveOnly, final Optional<Long> aggregateEvents) {
-		final var psub = new PSubscribe();
-		psub.setTransactionId(tid);
-		psub.setRequestPattern(pattern);
-		psub.setUnique(unique);
-		psub.setLiveOnly(liveOnly);
-		aggregateEvents.ifPresent(psub::setAggregateEvents);
+		final var psub = new PSubscribe(tid, pattern, unique, liveOnly, aggregateEvents.orElse(0L));
 		final var msg = new ClientMessage();
 		msg.setpSubscribe(psub);
 		return msg;
 	}
 
-	private <T> void doPSubscribe(final long tid, final String jsonMessage, final Class<T> type,
+	private <T> void doPSubscribe(final long tid, final String jsonMessage, final Type type,
 			final Consumer<TypedPStateEvent<T>> callback, final Consumer<? super Throwable> onError) {
 		this.pSubscriptions.put(tid, new PSubscription<>(callback, type));
 		this.sendMessage(jsonMessage, onError);
 	}
 
 	private ClientMessage unsubscribeMessage(final long transactionId) {
-		final var unsub = new Unsubscribe();
-		unsub.setTransactionId(transactionId);
+		final var unsub = new Unsubscribe(transactionId);
 		final var msg = new ClientMessage();
 		msg.setUnsubscribe(unsub);
 		return msg;
@@ -843,9 +979,7 @@ public class WorterbuchClientImpl implements WorterbuchClient {
 	}
 
 	private ClientMessage subscribeLsMessage(final long tid, final String parent) {
-		final var lssub = new SubscribeLs();
-		lssub.setTransactionId(tid);
-		lssub.setParent(parent);
+		final var lssub = new SubscribeLs(tid, parent);
 		final var msg = new ClientMessage();
 		msg.setSubscribeLs(lssub);
 		return msg;
@@ -858,8 +992,7 @@ public class WorterbuchClientImpl implements WorterbuchClient {
 	}
 
 	private ClientMessage unsubscribeLsMessage(final long transactionId) {
-		final var unsub = new UnsubscribeLs();
-		unsub.setTransactionId(transactionId);
+		final var unsub = new UnsubscribeLs(transactionId);
 		final var msg = new ClientMessage();
 		msg.setUnsubscribeLs(unsub);
 		return msg;
@@ -907,6 +1040,11 @@ public class WorterbuchClientImpl implements WorterbuchClient {
 					callbackExecutor.execute(() -> pendingSPubInit.callback().complete(transactionId));
 				}
 
+				final var pendingCSet = this.pendingCSets.remove(transactionId);
+				if (pendingCSet != null) {
+					callbackExecutor.execute(() -> pendingCSet.callback().complete(null));
+				}
+
 				return;
 			}
 
@@ -921,6 +1059,20 @@ public class WorterbuchClientImpl implements WorterbuchClient {
 					if (pendingGet != null) {
 						handled = true;
 						callbackExecutor.execute(() -> pendingGet.callback().complete(Optional.empty()));
+					}
+
+					final var pendingCGet = this.pendingCGets.remove(transactionId);
+					if (pendingCGet != null) {
+						handled = true;
+						callbackExecutor
+								.execute(() -> pendingCGet.callback().complete(new Tuple<>(Optional.empty(), 0L)));
+					}
+
+					final var pendingCSet = this.pendingCSets.remove(transactionId);
+					if (pendingCSet != null) {
+						handled = true;
+						callbackExecutor
+								.execute(() -> pendingCSet.callback().completeExceptionally(new WorterbuchError(err)));
 					}
 
 					final var pendingPGet = this.pendingPGets.remove(transactionId);
@@ -1000,6 +1152,21 @@ public class WorterbuchClientImpl implements WorterbuchClient {
 
 				final var subscription = this.subscriptions.get(transactionId);
 				this.deliverSubscription(subscription, valueContainer, deletedContainer, typeFactory, callbackExecutor);
+
+				return;
+			}
+
+			final var cStateContainer = parent.get("cState");
+			if (cStateContainer != null) {
+				final var transactionId = cStateContainer.get("transactionId").asLong();
+
+				final var valueContainer = cStateContainer.get("value");
+				final var versionContainer = cStateContainer.get("version");
+
+				final var typeFactory = this.objectMapper.getTypeFactory();
+
+				final var pendingCGet = this.pendingCGets.remove(transactionId);
+				this.deliverPendingCGet(pendingCGet, valueContainer, versionContainer, typeFactory, callbackExecutor);
 
 				return;
 			}
@@ -1156,6 +1323,27 @@ public class WorterbuchClientImpl implements WorterbuchClient {
 		}
 	}
 
+	private <T> void deliverPendingCGet(final PendingCGet<T> pendingCGet, final JsonNode valueContainer,
+			final JsonNode versionContainer, final TypeFactory typeFactory, final Executor callbackExecutor) {
+		if ((pendingCGet != null) && (versionContainer != null)) {
+			if (valueContainer != null) {
+				final var kvpType = typeFactory.constructType(pendingCGet.type());
+				try {
+					final var value = this.objectMapper.<T>readValue(valueContainer.toString(), kvpType);
+					final var version = this.objectMapper.readValue(versionContainer.toString(), Long.class);
+					callbackExecutor.execute(
+							() -> pendingCGet.callback().complete(new Tuple<>(Optional.ofNullable(value), version)));
+				} catch (final JsonProcessingException e) {
+					WorterbuchClientImpl.log.error("Could not deserialize JSON '{}': {}", valueContainer,
+							e.getMessage());
+					callbackExecutor.execute(() -> pendingCGet.callback().completeExceptionally(e));
+				}
+			} else {
+				callbackExecutor.execute(() -> pendingCGet.callback().complete(new Tuple<>(Optional.empty(), 0L)));
+			}
+		}
+	}
+
 	private <T> void deliverPendingDelete(final PendingDelete<T> pendingDelete, final JsonNode deletedContainer,
 			final TypeFactory typeFactory, final Executor callbackExecutor) {
 		if (pendingDelete != null) {
@@ -1198,8 +1386,9 @@ public class WorterbuchClientImpl implements WorterbuchClient {
 			final TypeFactory typeFactory, final Executor callbackExecutor) {
 		if (pendingPGet != null) {
 			if (kvpsContainer != null) {
-				final var kvpsType = typeFactory.constructParametricType(List.class,
-						typeFactory.constructParametricType(TypedKeyValuePair.class, pendingPGet.type()));
+				final var valueType = typeFactory.constructParametricType(TypedKeyValuePair.class,
+						typeFactory.constructType(pendingPGet.type()));
+				final var kvpsType = typeFactory.constructParametricType(List.class, valueType);
 				try {
 					final List<TypedKeyValuePair<T>> kvps = this.objectMapper.readValue(kvpsContainer.toString(),
 							kvpsType);
@@ -1219,8 +1408,9 @@ public class WorterbuchClientImpl implements WorterbuchClient {
 			final TypeFactory typeFactory, final Executor callbackExecutor) {
 		if (pendingPDelete != null) {
 			if (deletedContainer != null) {
-				final var kvpsType = typeFactory.constructParametricType(List.class,
-						typeFactory.constructParametricType(TypedKeyValuePair.class, pendingPDelete.type()));
+				final var valueType = typeFactory.constructParametricType(TypedKeyValuePair.class,
+						typeFactory.constructType(pendingPDelete.type()));
+				final var kvpsType = typeFactory.constructParametricType(List.class, valueType);
 				try {
 					final List<TypedKeyValuePair<T>> kvps = this.objectMapper.readValue(deletedContainer.toString(),
 							kvpsType);
@@ -1239,8 +1429,9 @@ public class WorterbuchClientImpl implements WorterbuchClient {
 	private <T> void deliverPSubscription(final PSubscription<T> pSubscription, final JsonNode kvpsContainer,
 			final JsonNode deletedContainer, final TypeFactory typeFactory, final Executor callbackExecutor) {
 		if (pSubscription != null) {
-			final var kvpsType = typeFactory.constructParametricType(List.class,
-					typeFactory.constructParametricType(TypedKeyValuePair.class, pSubscription.type()));
+			final var valueType = typeFactory.constructParametricType(TypedKeyValuePair.class,
+					typeFactory.constructType(pSubscription.type()));
+			final var kvpsType = typeFactory.constructParametricType(List.class, valueType);
 			if (kvpsContainer != null) {
 				try {
 					final List<TypedKeyValuePair<T>> kvps = this.objectMapper.readValue(kvpsContainer.toString(),
