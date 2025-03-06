@@ -23,6 +23,9 @@ import java.lang.reflect.Type;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
+
+@SuppressFBWarnings({ "EI_EXPOSE_REP", "EI_EXPOSE_REP2" })
 public record PendingDelete<T>(CompletableFuture<Optional<T>> callback, Type type) {
 
 }

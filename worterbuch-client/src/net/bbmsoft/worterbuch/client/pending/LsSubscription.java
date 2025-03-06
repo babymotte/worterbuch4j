@@ -22,6 +22,9 @@ package net.bbmsoft.worterbuch.client.pending;
 import java.util.List;
 import java.util.function.Consumer;
 
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
+
+@SuppressFBWarnings({ "EI_EXPOSE_REP", "EI_EXPOSE_REP2" })
 public record LsSubscription(Consumer<List<String>> callback) {
 
 }

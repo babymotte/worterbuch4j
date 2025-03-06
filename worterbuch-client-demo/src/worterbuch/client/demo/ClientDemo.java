@@ -40,6 +40,7 @@ import org.slf4j.LoggerFactory;
 
 import com.fasterxml.jackson.databind.type.TypeFactory;
 
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import net.bbmsoft.worterbuch.client.WorterbuchClientImpl;
 import net.bbmsoft.worterbuch.client.api.WorterbuchException;
 import net.bbmsoft.worterbuch.client.collections.AsyncWorterbuchList;
@@ -78,6 +79,7 @@ public class ClientDemo {
 	}
 
 	@Activate
+	@SuppressFBWarnings("EI_EXPOSE_REP2")
 	public void activate(final BundleContext ctx)
 			throws URISyntaxException, WorterbuchException, InterruptedException, ExecutionException, TimeoutException {
 		this.ctx = ctx;
@@ -98,7 +100,6 @@ public class ClientDemo {
 	@Deactivate
 	public void deactivate() {
 		this.running = false;
-//		this.thread.interrupt();
 	}
 
 	private void run()
@@ -111,6 +112,9 @@ public class ClientDemo {
 
 		final var wb = authToken != null ? WorterbuchClientImpl.connect(uris, authToken, this::exit, this::error)
 				: WorterbuchClientImpl.connect(uris, this::exit, this::error);
+
+		final var locked = wb.lock("testapp/state/leader").get();
+		System.out.println("Key locked: " + locked);
 
 		wb.set("testapp/state/running", true);
 

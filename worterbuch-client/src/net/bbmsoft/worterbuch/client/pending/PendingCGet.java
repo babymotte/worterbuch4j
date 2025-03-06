@@ -23,8 +23,10 @@ import java.lang.reflect.Type;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import net.bbmsoft.worterbuch.client.api.util.Tuple;
 
+@SuppressFBWarnings({ "EI_EXPOSE_REP", "EI_EXPOSE_REP2" })
 public record PendingCGet<T>(CompletableFuture<Tuple<Optional<T>, Long>> callback, Type type) {
 
 }

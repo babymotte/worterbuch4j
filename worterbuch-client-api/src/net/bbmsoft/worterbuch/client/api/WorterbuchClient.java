@@ -158,4 +158,8 @@ public interface WorterbuchClient extends AutoCloseable {
 
 	<T> void updateList(String key, Consumer<List<T>> update, Class<T> type);
 
+	CompletableFuture<Boolean> lock(String key);
+
+	CompletableFuture<Boolean> releaseLock(String key);
+
 }

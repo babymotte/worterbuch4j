@@ -77,6 +77,7 @@ import net.bbmsoft.worterbuch.client.model.Delete;
 import net.bbmsoft.worterbuch.client.model.Err;
 import net.bbmsoft.worterbuch.client.model.Get;
 import net.bbmsoft.worterbuch.client.model.KeyValuePair;
+import net.bbmsoft.worterbuch.client.model.Lock;
 import net.bbmsoft.worterbuch.client.model.Ls;
 import net.bbmsoft.worterbuch.client.model.PDelete;
 import net.bbmsoft.worterbuch.client.model.PGet;
@@ -84,6 +85,7 @@ import net.bbmsoft.worterbuch.client.model.PLs;
 import net.bbmsoft.worterbuch.client.model.PSubscribe;
 import net.bbmsoft.worterbuch.client.model.ProtocolSwitchRequest;
 import net.bbmsoft.worterbuch.client.model.Publish;
+import net.bbmsoft.worterbuch.client.model.ReleaseLock;
 import net.bbmsoft.worterbuch.client.model.SPub;
 import net.bbmsoft.worterbuch.client.model.SPubInit;
 import net.bbmsoft.worterbuch.client.model.Set;
@@ -98,9 +100,11 @@ import net.bbmsoft.worterbuch.client.pending.PendingCGet;
 import net.bbmsoft.worterbuch.client.pending.PendingCSet;
 import net.bbmsoft.worterbuch.client.pending.PendingDelete;
 import net.bbmsoft.worterbuch.client.pending.PendingGet;
+import net.bbmsoft.worterbuch.client.pending.PendingLock;
 import net.bbmsoft.worterbuch.client.pending.PendingLsState;
 import net.bbmsoft.worterbuch.client.pending.PendingPDelete;
 import net.bbmsoft.worterbuch.client.pending.PendingPGet;
+import net.bbmsoft.worterbuch.client.pending.PendingReleaseLock;
 import net.bbmsoft.worterbuch.client.pending.PendingSPubInit;
 import net.bbmsoft.worterbuch.client.pending.Subscription;
 
@@ -324,10 +328,12 @@ public class WorterbuchClientImpl implements WorterbuchClient {
 	private final Map<Long, Subscription<?>> subscriptions = new ConcurrentHashMap<>();
 	private final Map<Long, PSubscription<?>> pSubscriptions = new ConcurrentHashMap<>();
 	private final Map<Long, LsSubscription> lsSubscriptions = new ConcurrentHashMap<>();
+	private final Map<Long, PendingLock> pendingLocks = new ConcurrentHashMap<>();
+	private final Map<Long, PendingReleaseLock> pendingReleaseLocks = new ConcurrentHashMap<>();
 
 	private final AtomicBoolean welcomeReceived = new AtomicBoolean();
+	private final AtomicBoolean closing = new AtomicBoolean();
 
-	private boolean closing;
 	private boolean disconnected;
 	private final BiConsumer<Welcome, WorterbuchClientImpl> onWelcome;
 
@@ -656,7 +662,7 @@ public class WorterbuchClientImpl implements WorterbuchClient {
 
 	@Override
 	public <T, V> void update(final String key, final Function<Optional<T>, V> transform, final Class<T> type) {
-
+		this.update(key, transform, (Type) type);
 	}
 
 	@Override
@@ -666,7 +672,7 @@ public class WorterbuchClientImpl implements WorterbuchClient {
 
 	@Override
 	public <T> void update(final String key, final Supplier<T> seed, final Consumer<T> update, final Class<T> type) {
-		this.<T>update(key, seed, update, (Type) type);
+		this.update(key, seed, update, (Type) type);
 	}
 
 	@Override
@@ -708,6 +714,34 @@ public class WorterbuchClientImpl implements WorterbuchClient {
 	}
 
 	@Override
+	public CompletableFuture<Boolean> lock(final String key) {
+		final var fut = new CompletableFuture<Boolean>();
+		final var tid = this.acquireTid();
+		String json;
+		try {
+			json = this.toJson(this.lockMessage(tid, key));
+		} catch (final JsonProcessingException e) {
+			throw new SerializationFailed(e);
+		}
+		this.exec.execute(() -> this.doLock(tid, json, fut));
+		return fut;
+	}
+
+	@Override
+	public CompletableFuture<Boolean> releaseLock(final String key) {
+		final var fut = new CompletableFuture<Boolean>();
+		final var tid = this.acquireTid();
+		String json;
+		try {
+			json = this.toJson(this.releaseLockMessage(tid, key));
+		} catch (final JsonProcessingException e) {
+			throw new SerializationFailed(e);
+		}
+		this.exec.execute(() -> this.doReleaseLock(tid, json, fut));
+		return fut;
+	}
+
+	@Override
 	@SuppressFBWarnings(value = "EI_EXPOSE_REP")
 	public ObjectMapper getObjectMapper() {
 		return this.objectMapper;
@@ -732,8 +766,7 @@ public class WorterbuchClientImpl implements WorterbuchClient {
 	public void setGraveGoods(final List<String> graveGoods) throws WorterbuchException {
 
 		try {
-//			this.cSet("$SYS/clients/" + this.getClientId() + "/graveGoods", graveGoods, 0).get(5, TimeUnit.SECONDS);
-			this.cSet("$SYS/clients/" + this.getClientId() + "/graveGoods", graveGoods, 0).get();
+			this.cSet("$SYS/clients/" + this.getClientId() + "/graveGoods", graveGoods, 0).get(5, TimeUnit.SECONDS);
 		} catch (final InterruptedException e) {
 			Thread.currentThread().interrupt();
 			this.onError.accept(e);
@@ -745,10 +778,9 @@ public class WorterbuchClientImpl implements WorterbuchClient {
 				}
 			}
 			this.onError.accept(e);
+		} catch (final TimeoutException e) {
+			this.onError.accept(e);
 		}
-//		catch (final TimeoutException e) {
-//			this.onError.accept(e);
-//		}
 	}
 
 	@Override
@@ -1004,6 +1036,30 @@ public class WorterbuchClientImpl implements WorterbuchClient {
 		this.sendMessage(jsonMessage, onError);
 	}
 
+	private ClientMessage lockMessage(final long tid, final String key) {
+		final var lock = new Lock(tid, key);
+		final var msg = new ClientMessage();
+		msg.setLock(lock);
+		return msg;
+	}
+
+	private void doLock(final long tid, final String jsonMessage, final CompletableFuture<Boolean> fut) {
+		this.pendingLocks.put(tid, new PendingLock(fut));
+		this.sendMessage(jsonMessage, this.onError);
+	}
+
+	private ClientMessage releaseLockMessage(final long tid, final String key) {
+		final var releaseLock = new ReleaseLock(tid, key);
+		final var msg = new ClientMessage();
+		msg.setReleaseLock(releaseLock);
+		return msg;
+	}
+
+	private void doReleaseLock(final long tid, final String jsonMessage, final CompletableFuture<Boolean> fut) {
+		this.pendingReleaseLocks.put(tid, new PendingReleaseLock(fut));
+		this.sendMessage(jsonMessage, this.onError);
+	}
+
 	private String toJson(final ClientMessage msg) throws JsonProcessingException {
 		return msg != null ? this.objectMapper.writeValueAsString(msg) : "\"\"";
 	}
@@ -1043,6 +1099,16 @@ public class WorterbuchClientImpl implements WorterbuchClient {
 				final var pendingCSet = this.pendingCSets.remove(transactionId);
 				if (pendingCSet != null) {
 					callbackExecutor.execute(() -> pendingCSet.callback().complete(null));
+				}
+
+				final var pendingLock = this.pendingLocks.remove(transactionId);
+				if (pendingLock != null) {
+					callbackExecutor.execute(() -> pendingLock.callback().complete(true));
+				}
+
+				final var pendingReleaseLock = this.pendingReleaseLocks.remove(transactionId);
+				if (pendingReleaseLock != null) {
+					callbackExecutor.execute(() -> pendingReleaseLock.callback().complete(true));
 				}
 
 				return;
@@ -1107,6 +1173,18 @@ public class WorterbuchClientImpl implements WorterbuchClient {
 						handled = true;
 						callbackExecutor.execute(
 								() -> pendingSPubinit.callback().completeExceptionally(new WorterbuchError(err)));
+					}
+
+					final var pendingLock = this.pendingLocks.remove(transactionId);
+					if (pendingLock != null) {
+						handled = true;
+						callbackExecutor.execute(() -> pendingLock.callback().complete(false));
+					}
+
+					final var pendingReleaseLock = this.pendingReleaseLocks.remove(transactionId);
+					if (pendingReleaseLock != null) {
+						handled = true;
+						callbackExecutor.execute(() -> pendingReleaseLock.callback().complete(false));
 					}
 
 					if (!handled) {
@@ -1238,7 +1316,7 @@ public class WorterbuchClientImpl implements WorterbuchClient {
 	}
 
 	void onDisconnect(final int statusCode, final String reason) {
-		if (!this.closing) {
+		if (!this.closing.get()) {
 			WorterbuchClientImpl.log.error("WebSocket connection to server closed.");
 			this.pendingGets.clear();
 			this.pendingPGets.clear();
@@ -1459,12 +1537,14 @@ public class WorterbuchClientImpl implements WorterbuchClient {
 	}
 
 	private void doClose() {
-		this.closing = true;
-		WorterbuchClientImpl.log.info("Closing worterbuch client.");
-		try {
-			this.client.close();
-		} catch (final Exception e) {
-			this.onError.accept(new WorterbuchException("Error closing worterbuch client", e));
+		final var closed = this.closing.getAndSet(true);
+		if (!closed) {
+			WorterbuchClientImpl.log.info("Closing worterbuch client.");
+			try {
+				this.client.close();
+			} catch (final Exception e) {
+				this.onError.accept(new WorterbuchException("Error closing worterbuch client", e));
+			}
 		}
 	}
 
