@@ -17,9 +17,9 @@
  *  along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-package net.bbmsoft.worterbuch.client;
+package net.bbmsoft.worterbuch.client.api;
 
-import javax.annotation.Generated;
+import javax.annotation.processing.Generated;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
@@ -34,14 +34,7 @@ import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonPropertyOrder({ "key", "value" })
 @Generated("jsonschema2pojo")
-public class KeyValuePair<T> {
-
-	public static <T> KeyValuePair<T> of(final String key, final T value) {
-		final var keyValuePair = new KeyValuePair<T>();
-		keyValuePair.setKey(key);
-		keyValuePair.setValue(value);
-		return keyValuePair;
-	}
+public class TypedKeyValuePair<T> {
 
 	/**
 	 * The key (Required)
@@ -97,8 +90,8 @@ public class KeyValuePair<T> {
 	@Override
 	public String toString() {
 		final var sb = new StringBuilder();
-		sb.append(KeyValuePair.class.getName()).append('@').append(Integer.toHexString(System.identityHashCode(this)))
-				.append('[');
+		sb.append(TypedKeyValuePair.class.getName()).append('@')
+				.append(Integer.toHexString(System.identityHashCode(this))).append('[');
 		sb.append("key");
 		sb.append('=');
 		sb.append(((this.key == null) ? "<null>" : this.key));
@@ -128,10 +121,10 @@ public class KeyValuePair<T> {
 		if (other == this) {
 			return true;
 		}
-		if ((other instanceof KeyValuePair) == false) {
+		if ((other instanceof TypedKeyValuePair) == false) {
 			return false;
 		}
-		final KeyValuePair<?> rhs = ((KeyValuePair<?>) other);
+		final TypedKeyValuePair<?> rhs = ((TypedKeyValuePair<?>) other);
 		return (((this.value == rhs.value) || ((this.value != null) && this.value.equals(rhs.value)))
 				&& ((this.key == rhs.key) || ((this.key != null) && this.key.equals(rhs.key))));
 	}

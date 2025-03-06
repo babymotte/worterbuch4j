@@ -42,7 +42,7 @@ import org.slf4j.LoggerFactory;
 
 import net.bbmsoft.worterbuch.client.ClientSocket;
 
-public class TcpClientSocket implements ClientSocket {
+public final class TcpClientSocket implements ClientSocket {
 
 	private final Logger log = LoggerFactory.getLogger(this.getClass());
 

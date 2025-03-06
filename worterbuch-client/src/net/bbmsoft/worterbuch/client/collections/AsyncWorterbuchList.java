@@ -25,32 +25,41 @@ import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
 import java.util.ListIterator;
-import java.util.Optional;
 import java.util.concurrent.ExecutionException;
 import java.util.function.Consumer;
 
-import net.bbmsoft.worterbuch.client.WorterbuchClient;
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
+import net.bbmsoft.worterbuch.client.WorterbuchClientImpl;
 
 public class AsyncWorterbuchList<T> implements List<T> {
 
-	private final WorterbuchClient wbClient;
+	private final WorterbuchClientImpl wbClient;
 	private final Consumer<? super Throwable> errorHandler;
 	private final String key;
 	private final List<T> localCache;
+	private final Class<T> valueType;
 
-	public AsyncWorterbuchList(final WorterbuchClient wbClient, final String application, final String namespace,
-			final String listName, final Class<T> valueType, final Consumer<? super Throwable> errorHandler)
-			throws ExecutionException {
+	@SuppressFBWarnings(value = "EI_EXPOSE_REP2")
+	public AsyncWorterbuchList(final WorterbuchClientImpl wbClient, final String application, final String namespace,
+			final String listName, final Class<T> valueType, final Consumer<? super Throwable> errorHandler) {
+
 		this.wbClient = wbClient;
+		this.valueType = valueType;
 		this.errorHandler = errorHandler;
 		this.key = application + "/state/" + namespace + "/" + listName;
-		Optional<T[]> value = Optional.empty();
+		this.localCache = new ArrayList<>();
+	}
+
+	public void init() throws ExecutionException {
 		try {
-			value = wbClient.getArray(this.key, valueType).get();
+			final var value = this.wbClient.getArray(this.key, this.valueType).get();
+			value.ifPresent(v -> {
+				this.localCache.clear();
+				this.localCache.addAll(Arrays.asList(v));
+			});
 		} catch (final InterruptedException e) {
 			Thread.currentThread().interrupt();
 		}
-		this.localCache = value.map(a -> new ArrayList<>(Arrays.asList(a))).orElse(new ArrayList<>());
 	}
 
 	@Override

@@ -17,10 +17,7 @@ Bundle-License: AGPL-3.0-or-later; \
 
 Export-Package: \
 	net.bbmsoft.worterbuch.client,\
-	net.bbmsoft.worterbuch.client.collections,\
-	net.bbmsoft.worterbuch.client.error
-
-src = src, generated/model
+	net.bbmsoft.worterbuch.client.collections
 
 -buildpath: \
 	slf4j.api,\
@@ -30,13 +27,14 @@ src = src, generated/model
 	org.eclipse.jetty.util,\
 	org.eclipse.jetty.io,\
 	org.apache.servicemix.specs.annotation-api-1.3,\
-	com.fasterxml.jackson.core.jackson-core,\
-	com.fasterxml.jackson.core.jackson-databind,\
-	com.fasterxml.jackson.core.jackson-annotations,\
-	com.google.guava
+	com.fasterxml.jackson.core.jackson-core;version='2.17',\
+	com.fasterxml.jackson.core.jackson-databind;version='2.17',\
+	com.fasterxml.jackson.core.jackson-annotations;version='2.17',\
+	com.google.guava,\
+	worterbuch-client-api;version=latest,\
+	spotbugs-annotations
 
 -privatepackage: \
-	net.bbmsoft.worterbuch.client.model,\
 	net.bbmsoft.worterbuch.client.pending,\
 	net.bbmsoft.worterbuch.client.impl
 	

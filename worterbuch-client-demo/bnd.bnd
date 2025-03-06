@@ -9,7 +9,9 @@ Bundle-Version: 1.0.0.${tstamp}
 	slf4j.api,\
 	org.eclipse.jetty.websocket.api,\
 	org.eclipse.jetty.websocket.client,\
-	org.eclipse.jetty.websocket.common
+	org.eclipse.jetty.websocket.common,\
+	worterbuch-client-api,\
+	spotbugs-annotations
 
 -includeresource: resources
 

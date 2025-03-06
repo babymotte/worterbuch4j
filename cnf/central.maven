@@ -1,8 +1,10 @@
 # List repository contents using GAV coordinates
 
 org.eclipse.jetty.websocket:websocket-common:jar:9.4.12.v20180830
-com.fasterxml.jackson.core:jackson-core:jar:2.15.2
-com.fasterxml.jackson.core:jackson-databind:jar:2.15.2
-com.fasterxml.jackson.core:jackson-annotations:jar:2.15.2
+com.fasterxml.jackson.core:jackson-core:jar:2.17.2
+com.fasterxml.jackson.core:jackson-databind:jar:2.17.2
+com.fasterxml.jackson.core:jackson-annotations:jar:2.17.2
 com.google.guava:guava:jar:32.1.2-jre
 com.google.guava:failureaccess:jar:1.0.1
+
+com.github.spotbugs:spotbugs-annotations:jar:4.9.2

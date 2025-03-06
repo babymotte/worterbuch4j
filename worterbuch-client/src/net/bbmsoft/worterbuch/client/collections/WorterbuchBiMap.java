@@ -30,16 +30,18 @@ import java.util.stream.Collectors;
 
 import com.google.common.collect.BiMap;
 
-import net.bbmsoft.worterbuch.client.KeyValuePair;
-import net.bbmsoft.worterbuch.client.WorterbuchClient;
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
+import net.bbmsoft.worterbuch.client.WorterbuchClientImpl;
+import net.bbmsoft.worterbuch.client.api.TypedKeyValuePair;
 
+@SuppressFBWarnings(value = "EI_EXPOSE_REP2")
 public class WorterbuchBiMap implements BiMap<String, String> {
 
 	private final String rootKey;
-	private final WorterbuchClient wbClient;
+	private final WorterbuchClientImpl wbClient;
 	private final Consumer<? super Throwable> errorHandler;
 
-	public WorterbuchBiMap(final WorterbuchClient wbClient, final String application, final String namespace,
+	public WorterbuchBiMap(final WorterbuchClientImpl wbClient, final String application, final String namespace,
 			final String mapName, final Consumer<? super Throwable> errorHandler) {
 		this.wbClient = wbClient;
 		this.errorHandler = errorHandler;
@@ -199,7 +201,7 @@ public class WorterbuchBiMap implements BiMap<String, String> {
 		}
 	}
 
-	private Map.Entry<String, String> toEntry(final KeyValuePair<String> kvp) {
+	private Map.Entry<String, String> toEntry(final TypedKeyValuePair<String> kvp) {
 		return new Map.Entry<>() {
 
 			@Override
@@ -246,8 +248,8 @@ public class WorterbuchBiMap implements BiMap<String, String> {
 			try {
 				final var kvps = WorterbuchBiMap.this.wbClient.pGet(WorterbuchBiMap.this.rootKey + "/#", String.class)
 						.get();
-				return kvps.stream().filter(e -> Objects.equals(e.getValue(), key)).map(KeyValuePair::getKey).findAny()
-						.orElse(null);
+				return kvps.stream().filter(e -> Objects.equals(e.getValue(), key)).map(TypedKeyValuePair::getKey)
+						.findAny().orElse(null);
 			} catch (final InterruptedException e) {
 				Thread.currentThread().interrupt();
 				return null;
@@ -326,7 +328,7 @@ public class WorterbuchBiMap implements BiMap<String, String> {
 			}
 		}
 
-		private Map.Entry<String, String> toEntry(final KeyValuePair<String> kvp) {
+		private Map.Entry<String, String> toEntry(final TypedKeyValuePair<String> kvp) {
 			return new Map.Entry<>() {
 
 				@Override

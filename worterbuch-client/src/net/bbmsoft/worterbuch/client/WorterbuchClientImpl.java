@@ -30,7 +30,6 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
@@ -54,9 +53,14 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.type.TypeFactory;
 
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
+import net.bbmsoft.worterbuch.client.api.Constants;
+import net.bbmsoft.worterbuch.client.api.TypedKeyValuePair;
+import net.bbmsoft.worterbuch.client.api.TypedPStateEvent;
+import net.bbmsoft.worterbuch.client.api.WorterbuchClient;
+import net.bbmsoft.worterbuch.client.api.WorterbuchException;
 import net.bbmsoft.worterbuch.client.error.SerializationFailed;
 import net.bbmsoft.worterbuch.client.impl.Config;
-import net.bbmsoft.worterbuch.client.impl.Constants;
 import net.bbmsoft.worterbuch.client.impl.TcpClientSocket;
 import net.bbmsoft.worterbuch.client.impl.WrappingExecutor;
 import net.bbmsoft.worterbuch.client.impl.WsClientSocket;
@@ -65,11 +69,13 @@ import net.bbmsoft.worterbuch.client.model.ClientMessage;
 import net.bbmsoft.worterbuch.client.model.Delete;
 import net.bbmsoft.worterbuch.client.model.Err;
 import net.bbmsoft.worterbuch.client.model.Get;
+import net.bbmsoft.worterbuch.client.model.KeyValuePair;
 import net.bbmsoft.worterbuch.client.model.Ls;
 import net.bbmsoft.worterbuch.client.model.PDelete;
 import net.bbmsoft.worterbuch.client.model.PGet;
 import net.bbmsoft.worterbuch.client.model.PLs;
 import net.bbmsoft.worterbuch.client.model.PSubscribe;
+import net.bbmsoft.worterbuch.client.model.ProtocolSwitchRequest;
 import net.bbmsoft.worterbuch.client.model.Publish;
 import net.bbmsoft.worterbuch.client.model.SPub;
 import net.bbmsoft.worterbuch.client.model.SPubInit;
@@ -89,29 +95,29 @@ import net.bbmsoft.worterbuch.client.pending.PendingPGet;
 import net.bbmsoft.worterbuch.client.pending.PendingSPubInit;
 import net.bbmsoft.worterbuch.client.pending.Subscription;
 
-public class WorterbuchClient implements AutoCloseable {
+public class WorterbuchClientImpl implements AutoCloseable, WorterbuchClient {
 
-	private final static Logger log = LoggerFactory.getLogger(WorterbuchClient.class);
+	private final static Logger log = LoggerFactory.getLogger(WorterbuchClientImpl.class);
 
-	public static WorterbuchClient connect(final Iterable<URI> uris, final BiConsumer<Integer, String> onDisconnect,
+	public static WorterbuchClientImpl connect(final Iterable<URI> uris, final BiConsumer<Integer, String> onDisconnect,
 			final Consumer<Throwable> onError) throws InterruptedException, TimeoutException, WorterbuchException {
 
 		final var callbackExecutor = new WrappingExecutor(
 				Executors.newSingleThreadScheduledExecutor(r -> new Thread(r, "worterbuch-client-callbacks")), onError);
 
-		return WorterbuchClient.connect(uris, Optional.empty(), callbackExecutor, onDisconnect, onError);
+		return WorterbuchClientImpl.connect(uris, Optional.empty(), callbackExecutor, onDisconnect, onError);
 	}
 
-	public static WorterbuchClient connect(final Iterable<URI> uris, final String authToken,
+	public static WorterbuchClientImpl connect(final Iterable<URI> uris, final String authToken,
 			final BiConsumer<Integer, String> onDisconnect, final Consumer<Throwable> onError)
 			throws InterruptedException, TimeoutException, WorterbuchException {
 
 		final var callbackExecutor = new WrappingExecutor(
 				Executors.newSingleThreadScheduledExecutor(r -> new Thread(r, "worterbuch-client-callbacks")), onError);
-		return WorterbuchClient.connect(uris, Optional.of(authToken), callbackExecutor, onDisconnect, onError);
+		return WorterbuchClientImpl.connect(uris, Optional.of(authToken), callbackExecutor, onDisconnect, onError);
 	}
 
-	public static WorterbuchClient connect(final Iterable<URI> uris, final Optional<String> authToken,
+	public static WorterbuchClientImpl connect(final Iterable<URI> uris, final Optional<String> authToken,
 			final Executor callbackExecutor, final BiConsumer<Integer, String> onDisconnect,
 			final Consumer<Throwable> onError) throws TimeoutException, WorterbuchException {
 
@@ -122,15 +128,15 @@ public class WorterbuchClient implements AutoCloseable {
 		final var exec = new WrappingExecutor(
 				Executors.newSingleThreadScheduledExecutor(r -> new Thread(r, "worterbuch-client")), onError);
 
-		WorterbuchClient wb = null;
+		WorterbuchClientImpl wb = null;
 
 		for (final URI uri : uris) {
 			try {
-				wb = WorterbuchClient.initWorterbuchClient(uri, authToken, onDisconnect, onError, exec,
+				wb = WorterbuchClientImpl.initWorterbuchClient(uri, authToken, onDisconnect, onError, exec,
 						Objects.requireNonNull(callbackExecutor));
 				break;
 			} catch (final Throwable e) {
-				WorterbuchClient.log.warn("Could not connect to server {}: {}", uri, e.getMessage());
+				WorterbuchClientImpl.log.warn("Could not connect to server {}: {}", uri, e.getMessage());
 			}
 		}
 
@@ -141,53 +147,78 @@ public class WorterbuchClient implements AutoCloseable {
 		return wb;
 	}
 
-	private static WorterbuchClient initWorterbuchClient(final URI uri, final Optional<String> authtoken,
+	private static WorterbuchClientImpl initWorterbuchClient(final URI uri, final Optional<String> authtoken,
 			final BiConsumer<Integer, String> onDisconnect, final Consumer<? super Throwable> onError,
 			final ScheduledExecutorService exec, final Executor callbackExecutor) throws Throwable {
 
 		if (uri.getScheme().equals("tcp")) {
-			return WorterbuchClient.initTcpWorterbuchClient(uri, authtoken, onDisconnect, onError, exec,
+			return WorterbuchClientImpl.initTcpWorterbuchClient(uri, authtoken, onDisconnect, onError, exec,
 					callbackExecutor);
 		} else {
-			return WorterbuchClient.initWsWorterbuchClient(uri, authtoken, onDisconnect, onError, exec,
+			return WorterbuchClientImpl.initWsWorterbuchClient(uri, authtoken, onDisconnect, onError, exec,
 					callbackExecutor);
 		}
 
 	}
 
-	private static WorterbuchClient initWsWorterbuchClient(final URI uri, final Optional<String> authtoken,
+	private static void onWelcome(final Welcome welcome, final WorterbuchClientImpl client,
+			final LinkedBlockingQueue<Optional<Throwable>> latch, final Optional<String> authToken) {
+		try {
+			final var serverInfo = welcome.getInfo();
+
+			final var protoVersion = client.compatibleProtocolVersion(serverInfo.getSupportedProtocolVersions());
+
+			if (protoVersion.isEmpty()) {
+
+				try {
+					latch.offer(Optional.of(new WorterbuchException(
+							"Protocol version " + Constants.PROTOCOL_VERSION + " is not supported by the server.")),
+							Config.CONNECT_TIMEOUT, TimeUnit.SECONDS);
+				} catch (final InterruptedException e1) {
+					Thread.currentThread().interrupt();
+				}
+
+			} else {
+
+				client.clientId = welcome.getClientId();
+
+				client.switchProtocol(protoVersion.get());
+
+				if (serverInfo.isAuthorizationRequired()) {
+					client.authorize(authToken);
+				}
+			}
+		} catch (final Throwable e) {
+			try {
+				latch.offer(Optional.of(e), Config.CONNECT_TIMEOUT, TimeUnit.SECONDS);
+			} catch (final InterruptedException e1) {
+				Thread.currentThread().interrupt();
+			}
+		} finally {
+			try {
+				latch.offer(Optional.empty(), Config.CONNECT_TIMEOUT, TimeUnit.SECONDS);
+			} catch (final InterruptedException e1) {
+				Thread.currentThread().interrupt();
+			}
+		}
+
+	}
+
+	private static WorterbuchClientImpl initWsWorterbuchClient(final URI uri, final Optional<String> authtoken,
 			final BiConsumer<Integer, String> onDisconnect, final Consumer<? super Throwable> onError,
 			final ScheduledExecutorService exec, final Executor callbackExecutor) throws Throwable {
 
-		final var latch = new CountDownLatch(1);
-
-		final BiConsumer<Welcome, WorterbuchClient> onWelcome = (welcome, client) -> {
-
-			final var serverInfo = welcome.getInfo();
-
-			if (!client.protocolVersionIsSupported(serverInfo.getProtocolVersion())) {
-				client.onError.accept(new WorterbuchException(
-						"Protocol version " + serverInfo.getProtocolVersion() + " is not supported by this client."));
-			}
-
-			client.clientId = welcome.getClientId();
-
-			if (serverInfo.isAuthorizationRequired()) {
-				client.authorize(authtoken);
-			}
-
-			latch.countDown();
-
-		};
-
 		final var clientSocket = new WsClientSocket(uri, onError, authtoken);
 
-		final var wb = new WorterbuchClient(exec, onWelcome, onDisconnect, onError, clientSocket);
+		final var preConnectError = new LinkedBlockingQueue<Optional<Throwable>>();
+		final var handshakeLatch = new LinkedBlockingQueue<Optional<Throwable>>();
+		final var wb = new WorterbuchClientImpl(exec,
+				(welcome, client) -> WorterbuchClientImpl.onWelcome(welcome, client, handshakeLatch, authtoken),
+				onDisconnect, onError, clientSocket);
 
-		final var error = new LinkedBlockingQueue<Optional<Throwable>>();
 		final Consumer<Throwable> preConnectErrorHandler = e -> {
 			try {
-				error.offer(Optional.of(e), Config.CONNECT_TIMEOUT, TimeUnit.SECONDS);
+				preConnectError.offer(Optional.of(e), Config.CONNECT_TIMEOUT, TimeUnit.SECONDS);
 			} catch (final InterruptedException e1) {
 				Thread.currentThread().interrupt();
 			}
@@ -210,7 +241,7 @@ public class WorterbuchClient implements AutoCloseable {
 			public void onWebSocketConnect(final Session sess) {
 				errorHandler.set(postConnectErrorHandler);
 				try {
-					error.offer(Optional.empty(), Config.CONNECT_TIMEOUT, TimeUnit.SECONDS);
+					preConnectError.offer(Optional.empty(), Config.CONNECT_TIMEOUT, TimeUnit.SECONDS);
 				} catch (final InterruptedException e) {
 					Thread.currentThread().interrupt();
 				}
@@ -224,51 +255,41 @@ public class WorterbuchClient implements AutoCloseable {
 
 		clientSocket.open(socket);
 
-		final var err = error.poll(Config.CONNECT_TIMEOUT, TimeUnit.SECONDS);
-		if (err.isPresent()) {
-			throw err.get();
+		final var error = preConnectError.poll(Config.CONNECT_TIMEOUT, TimeUnit.SECONDS);
+		if (error == null) {
+			throw new WorterbuchException("connection attempt timed out");
+		} else if (error.isPresent()) {
+			throw error.get();
 		}
 
-		if (!latch.await(Config.CONNECT_TIMEOUT, TimeUnit.SECONDS)) {
-			throw new WorterbuchException("did not receive welcome message");
+		final var handshakeError = handshakeLatch.poll(Config.CONNECT_TIMEOUT, TimeUnit.SECONDS);
+		if (handshakeError == null) {
+			throw new WorterbuchException("connection attempt timed out");
+		} else if (handshakeError.isPresent()) {
+			throw handshakeError.get();
 		}
 
 		return wb;
 	}
 
-	private static WorterbuchClient initTcpWorterbuchClient(final URI uri, final Optional<String> authtoken,
+	private static WorterbuchClientImpl initTcpWorterbuchClient(final URI uri, final Optional<String> authtoken,
 			final BiConsumer<Integer, String> onDisconnect, final Consumer<? super Throwable> onError,
 			final ScheduledExecutorService exec, final Executor callbackExecutor) throws Throwable {
 
-		final var latch = new CountDownLatch(1);
-
-		final BiConsumer<Welcome, WorterbuchClient> onWelcome = (welcome, client) -> {
-
-			final var serverInfo = welcome.getInfo();
-
-			if (!client.protocolVersionIsSupported(serverInfo.getProtocolVersion())) {
-				client.onError.accept(new WorterbuchException(
-						"Protocol version " + serverInfo.getProtocolVersion() + " is not supported by this client."));
-			}
-
-			client.clientId = welcome.getClientId();
-
-			if (serverInfo.isAuthorizationRequired()) {
-				client.authorize(authtoken);
-			}
-
-			latch.countDown();
-
-		};
-
 		final var clientSocket = new TcpClientSocket(uri, onDisconnect, onError, Config.CHANNEL_BUFFER_SIZE);
 
-		final var wb = new WorterbuchClient(exec, onWelcome, onDisconnect, onError, clientSocket);
+		final var handshakeLatch = new LinkedBlockingQueue<Optional<Throwable>>();
+		final var wb = new WorterbuchClientImpl(exec,
+				(welcome, client) -> WorterbuchClientImpl.onWelcome(welcome, client, handshakeLatch, authtoken),
+				onDisconnect, onError, clientSocket);
 
 		clientSocket.open(msg -> wb.messageReceived(msg, callbackExecutor), Config.SEND_TIMEOUT, TimeUnit.SECONDS);
 
-		if (!latch.await(Config.CONNECT_TIMEOUT, TimeUnit.SECONDS)) {
-			throw new WorterbuchException("did not receive welcome message");
+		final var handshakeError = handshakeLatch.poll(Config.CONNECT_TIMEOUT, TimeUnit.SECONDS);
+		if (handshakeError == null) {
+			throw new WorterbuchException("connection attempt timed out");
+		} else if (handshakeError.isPresent()) {
+			throw handshakeError.get();
 		}
 
 		return wb;
@@ -295,11 +316,11 @@ public class WorterbuchClient implements AutoCloseable {
 
 	private boolean closing;
 	private boolean disconnected;
-	private BiConsumer<Welcome, WorterbuchClient> onWelcome;
+	private BiConsumer<Welcome, WorterbuchClientImpl> onWelcome;
 
 	private String clientId;
 
-	WorterbuchClient(final ScheduledExecutorService exec, final BiConsumer<Welcome, WorterbuchClient> onWelcome,
+	WorterbuchClientImpl(final ScheduledExecutorService exec, final BiConsumer<Welcome, WorterbuchClientImpl> onWelcome,
 			final BiConsumer<Integer, String> onDisconnect, final Consumer<? super Throwable> onError,
 			final ClientSocket client) {
 		this.exec = exec;
@@ -319,6 +340,7 @@ public class WorterbuchClient implements AutoCloseable {
 		return nextTid;
 	}
 
+	@Override
 	public <T> long set(final String key, final T value, final Consumer<? super Throwable> onError) {
 		final var tid = this.acquireTid();
 		String json;
@@ -331,6 +353,7 @@ public class WorterbuchClient implements AutoCloseable {
 		return tid;
 	}
 
+	@Override
 	public <T> long publish(final String key, final T value, final Consumer<? super Throwable> onError) {
 		final var tid = this.acquireTid();
 		String json;
@@ -343,6 +366,7 @@ public class WorterbuchClient implements AutoCloseable {
 		return tid;
 	}
 
+	@Override
 	public <T> Future<Long> initPubStream(final String key, final Consumer<? super Throwable> onError) {
 		final var fut = new CompletableFuture<Long>();
 		final var tid = this.acquireTid();
@@ -356,6 +380,7 @@ public class WorterbuchClient implements AutoCloseable {
 		return fut;
 	}
 
+	@Override
 	public <T> long initPubStream(final String key, final Consumer<Long> callback,
 			final Consumer<? super Throwable> onError) {
 		final var tid = this.acquireTid();
@@ -375,6 +400,7 @@ public class WorterbuchClient implements AutoCloseable {
 		return tid;
 	}
 
+	@Override
 	public <T> void streamPub(final long transactionId, final T value, final Consumer<? super Throwable> onError) {
 		String json;
 		try {
@@ -385,6 +411,7 @@ public class WorterbuchClient implements AutoCloseable {
 		this.exec.execute(() -> this.doStreamPub(json, onError));
 	}
 
+	@Override
 	public <T> Future<Optional<T>> get(final String key, final Class<T> type) {
 		final var fut = new CompletableFuture<Optional<T>>();
 		try {
@@ -395,6 +422,7 @@ public class WorterbuchClient implements AutoCloseable {
 		return fut;
 	}
 
+	@Override
 	public <T> long get(final String key, final Class<T> type, final Consumer<Optional<T>> callback,
 			final Consumer<? super Throwable> onError) {
 		final var tid = this.acquireTid();
@@ -408,6 +436,7 @@ public class WorterbuchClient implements AutoCloseable {
 		return tid;
 	}
 
+	@Override
 	public <T> Future<Optional<T[]>> getArray(final String key, final Class<T> elementType) {
 		final var fut = new CompletableFuture<Optional<T[]>>();
 		try {
@@ -418,6 +447,7 @@ public class WorterbuchClient implements AutoCloseable {
 		return fut;
 	}
 
+	@Override
 	public <T> long getArray(final String key, final Class<T> elementType, final Consumer<Optional<T[]>> callback,
 			final Consumer<? super Throwable> onError) {
 		final var tid = this.acquireTid();
@@ -431,8 +461,9 @@ public class WorterbuchClient implements AutoCloseable {
 		return tid;
 	}
 
-	public <T> Future<List<KeyValuePair<T>>> pGet(final String pattern, final Class<T> type) {
-		final var fut = new CompletableFuture<List<KeyValuePair<T>>>();
+	@Override
+	public <T> Future<List<TypedKeyValuePair<T>>> pGet(final String pattern, final Class<T> type) {
+		final var fut = new CompletableFuture<List<TypedKeyValuePair<T>>>();
 		try {
 			this.<T>pGet(pattern, type, val -> fut.complete(val), e -> fut.completeExceptionally(e));
 		} catch (final SerializationFailed e) {
@@ -441,7 +472,8 @@ public class WorterbuchClient implements AutoCloseable {
 		return fut;
 	}
 
-	public <T> long pGet(final String pattern, final Class<T> type, final Consumer<List<KeyValuePair<T>>> callback,
+	@Override
+	public <T> long pGet(final String pattern, final Class<T> type, final Consumer<List<TypedKeyValuePair<T>>> callback,
 			final Consumer<? super Throwable> onError) {
 		final var tid = this.acquireTid();
 		String json;
@@ -454,6 +486,7 @@ public class WorterbuchClient implements AutoCloseable {
 		return tid;
 	}
 
+	@Override
 	public <T> Future<Optional<T>> delete(final String key, final Class<T> type) {
 		final var fut = new CompletableFuture<Optional<T>>();
 		try {
@@ -464,6 +497,7 @@ public class WorterbuchClient implements AutoCloseable {
 		return fut;
 	}
 
+	@Override
 	public <T> long delete(final String key, final Class<T> type, final Consumer<Optional<T>> callback,
 			final Consumer<? super Throwable> onError) {
 		final var tid = this.acquireTid();
@@ -477,12 +511,14 @@ public class WorterbuchClient implements AutoCloseable {
 		return tid;
 	}
 
+	@Override
 	public long delete(final String key, final Consumer<? super Throwable> onError) {
 		return this.delete(key, null, null, onError);
 	}
 
-	public <T> Future<List<KeyValuePair<T>>> pDelete(final String pattern, final Class<T> type) {
-		final var fut = new CompletableFuture<List<KeyValuePair<T>>>();
+	@Override
+	public <T> Future<List<TypedKeyValuePair<T>>> pDelete(final String pattern, final Class<T> type) {
+		final var fut = new CompletableFuture<List<TypedKeyValuePair<T>>>();
 		try {
 			this.<T>pDelete(pattern, type, val -> fut.complete(val), e -> fut.completeExceptionally(e));
 		} catch (final SerializationFailed e) {
@@ -491,6 +527,7 @@ public class WorterbuchClient implements AutoCloseable {
 		return fut;
 	}
 
+	@Override
 	public Future<Void> pDelete(final String pattern) {
 		final var fut = new CompletableFuture<Void>();
 		try {
@@ -501,8 +538,9 @@ public class WorterbuchClient implements AutoCloseable {
 		return fut;
 	}
 
-	public <T> long pDelete(final String pattern, final Class<T> type, final Consumer<List<KeyValuePair<T>>> callback,
-			final Consumer<? super Throwable> onError) {
+	@Override
+	public <T> long pDelete(final String pattern, final Class<T> type,
+			final Consumer<List<TypedKeyValuePair<T>>> callback, final Consumer<? super Throwable> onError) {
 		final var tid = this.acquireTid();
 		String json;
 		try {
@@ -514,6 +552,7 @@ public class WorterbuchClient implements AutoCloseable {
 		return tid;
 	}
 
+	@Override
 	public long pDelete(final String pattern, final Runnable callback, final Consumer<? super Throwable> onError) {
 		final var tid = this.acquireTid();
 		String json;
@@ -526,6 +565,7 @@ public class WorterbuchClient implements AutoCloseable {
 		return tid;
 	}
 
+	@Override
 	public Future<List<String>> ls(final String parent) {
 		final var fut = new CompletableFuture<List<String>>();
 		try {
@@ -536,6 +576,7 @@ public class WorterbuchClient implements AutoCloseable {
 		return fut;
 	}
 
+	@Override
 	public long ls(final String parent, final Consumer<List<String>> callback,
 			final Consumer<? super Throwable> onError) {
 		final var tid = this.acquireTid();
@@ -549,6 +590,7 @@ public class WorterbuchClient implements AutoCloseable {
 		return tid;
 	}
 
+	@Override
 	public Future<List<String>> pLs(final String parentPattern) {
 		final var fut = new CompletableFuture<List<String>>();
 		try {
@@ -559,6 +601,7 @@ public class WorterbuchClient implements AutoCloseable {
 		return fut;
 	}
 
+	@Override
 	public long pLs(final String parentPattern, final Consumer<List<String>> callback,
 			final Consumer<? super Throwable> onError) {
 		final var tid = this.acquireTid();
@@ -572,6 +615,7 @@ public class WorterbuchClient implements AutoCloseable {
 		return tid;
 	}
 
+	@Override
 	public <T> long subscribe(final String key, final boolean unique, final boolean liveOnly, final Class<T> type,
 			final Consumer<Optional<T>> callback, final Consumer<? super Throwable> onError) {
 		final var tid = this.acquireTid();
@@ -585,6 +629,7 @@ public class WorterbuchClient implements AutoCloseable {
 		return tid;
 	}
 
+	@Override
 	public <T> long subscribeArray(final String key, final boolean unique, final boolean liveOnly,
 			final Class<T> elementType, final Consumer<Optional<T[]>> callback,
 			final Consumer<? super Throwable> onError) {
@@ -599,8 +644,9 @@ public class WorterbuchClient implements AutoCloseable {
 		return tid;
 	}
 
+	@Override
 	public <T> long pSubscribe(final String pattern, final boolean unique, final boolean liveOnly,
-			final Optional<Long> aggregateEvents, final Class<T> type, final Consumer<PStateEvent<T>> callback,
+			final Optional<Long> aggregateEvents, final Class<T> type, final Consumer<TypedPStateEvent<T>> callback,
 			final Consumer<? super Throwable> onError) {
 		final var tid = this.acquireTid();
 		String json;
@@ -613,6 +659,7 @@ public class WorterbuchClient implements AutoCloseable {
 		return tid;
 	}
 
+	@Override
 	public void unsubscribe(final long transactionId, final Consumer<? super Throwable> onError) {
 		String json;
 		try {
@@ -623,6 +670,7 @@ public class WorterbuchClient implements AutoCloseable {
 		this.exec.execute(() -> this.doUnsubscribe(transactionId, json, onError));
 	}
 
+	@Override
 	public long subscribeLs(final String parent, final Consumer<List<String>> callback,
 			final Consumer<? super Throwable> onError) {
 		final var tid = this.acquireTid();
@@ -636,6 +684,7 @@ public class WorterbuchClient implements AutoCloseable {
 		return tid;
 	}
 
+	@Override
 	public void unsubscribeLs(final long transactionId, final Consumer<? super Throwable> onError) {
 		String json;
 		try {
@@ -646,23 +695,28 @@ public class WorterbuchClient implements AutoCloseable {
 		this.exec.execute(() -> this.doUnsubscribeLs(transactionId, json, onError));
 	}
 
+	@Override
+	@SuppressFBWarnings(value = "EI_EXPOSE_REP")
 	public ObjectMapper getObjectMapper() {
 		return this.objectMapper;
 	}
 
+	@Override
 	public String getClientId() {
 		return this.clientId;
 	}
 
+	@Override
 	public Future<Optional<String[]>> getGraveGoods() {
 		return this.getArray("$SYS/clients/" + this.getClientId() + "/graveGoods", String.class);
 	}
 
-	@SuppressWarnings("rawtypes")
+	@Override
 	public Future<Optional<KeyValuePair[]>> getLastWill() {
 		return this.getArray("$SYS/clients/" + this.getClientId() + "/lastWill", KeyValuePair.class);
 	}
 
+	@Override
 	public long setGraveGoods(final String[] graveGoods, final Consumer<? super Throwable> onError) {
 		if (graveGoods == null) {
 			return this.delete("$SYS/clients/" + this.getClientId() + "/graveGoods", onError);
@@ -671,7 +725,8 @@ public class WorterbuchClient implements AutoCloseable {
 		}
 	}
 
-	public long setLastWill(final KeyValuePair<?>[] lastWill, final Consumer<? super Throwable> onError) {
+	@Override
+	public long setLastWill(final KeyValuePair[] lastWill, final Consumer<? super Throwable> onError) {
 		if (lastWill == null) {
 			return this.delete("$SYS/clients/" + this.getClientId() + "/lastWill", onError);
 		} else {
@@ -679,6 +734,7 @@ public class WorterbuchClient implements AutoCloseable {
 		}
 	}
 
+	@Override
 	public long setClientName(final String name) {
 		return this.set("$SYS/clients/" + this.getClientId() + "/clientName", name, this.onError);
 	}
@@ -764,7 +820,7 @@ public class WorterbuchClient implements AutoCloseable {
 	}
 
 	private <T> void doPGet(final long tid, final String jsonMessage, final Class<T> type,
-			final Consumer<List<KeyValuePair<T>>> callback, final Consumer<? super Throwable> onError) {
+			final Consumer<List<TypedKeyValuePair<T>>> callback, final Consumer<? super Throwable> onError) {
 		this.pendingPGets.put(tid, new PendingPGet<>(callback, type));
 		this.sendMessage(jsonMessage, onError);
 	}
@@ -797,7 +853,7 @@ public class WorterbuchClient implements AutoCloseable {
 	}
 
 	private <T> void doPDelete(final long tid, final String jsonMessage, final Class<T> type,
-			final Consumer<List<KeyValuePair<T>>> callback, final Consumer<? super Throwable> onError) {
+			final Consumer<List<TypedKeyValuePair<T>>> callback, final Consumer<? super Throwable> onError) {
 		if (callback != null) {
 			this.pendingPDeletes.put(tid, new PendingPDelete<>(callback, Objects.requireNonNull(type)));
 		}
@@ -866,7 +922,7 @@ public class WorterbuchClient implements AutoCloseable {
 	}
 
 	private <T> void doPSubscribe(final long tid, final String jsonMessage, final Class<T> type,
-			final Consumer<PStateEvent<T>> callback, final Consumer<? super Throwable> onError) {
+			final Consumer<TypedPStateEvent<T>> callback, final Consumer<? super Throwable> onError) {
 		this.pSubscriptions.put(tid, new PSubscription<>(callback, type));
 		this.sendMessage(jsonMessage, onError);
 	}
@@ -998,11 +1054,11 @@ public class WorterbuchClient implements AutoCloseable {
 					}
 
 					if (!handled) {
-						WorterbuchClient.log.error("Received error message from server: '{}'", errContainer);
+						WorterbuchClientImpl.log.error("Received error message from server: '{}'", errContainer);
 					}
 
 				} catch (final JsonProcessingException e) {
-					WorterbuchClient.log.error("Could not deserialize JSON '{}': {}", errContainer, e.getMessage());
+					WorterbuchClientImpl.log.error("Could not deserialize JSON '{}': {}", errContainer, e.getMessage());
 				}
 				return;
 			}
@@ -1011,13 +1067,14 @@ public class WorterbuchClient implements AutoCloseable {
 			if (wcContainer != null) {
 				try {
 					final var welcome = this.objectMapper.readValue(wcContainer.toString(), Welcome.class);
-					WorterbuchClient.log.info("Received welcome message.");
+					WorterbuchClientImpl.log.info("Received welcome message.");
 					if (this.onWelcome != null) {
 						this.onWelcome.accept(welcome, this);
 						this.onWelcome = null;
 					}
 				} catch (final JsonProcessingException e) {
-					WorterbuchClient.log.error("Could not deserialize JSON '{}': {}", wcContainer, e.getMessage());
+					WorterbuchClientImpl.log.error("Could not deserialize JSON '{}': {}", wcContainer, e.getMessage());
+					this.onError.accept(e);
 				}
 				return;
 			}
@@ -1088,7 +1145,7 @@ public class WorterbuchClient implements AutoCloseable {
 					}
 				} catch (final JsonProcessingException e) {
 
-					WorterbuchClient.log.error("Could not deserialize JSON '{}': {}", childrenContainer,
+					WorterbuchClientImpl.log.error("Could not deserialize JSON '{}': {}", childrenContainer,
 							e.getMessage());
 
 					if (pendingLs != null) {
@@ -1104,14 +1161,14 @@ public class WorterbuchClient implements AutoCloseable {
 			}
 
 		} catch (final JsonProcessingException e) {
-			WorterbuchClient.log.error("Received invalid JSON message: '{}'", message);
+			WorterbuchClientImpl.log.error("Received invalid JSON message: '{}'", message);
 		}
 
 	}
 
 	void onDisconnect(final int statusCode, final String reason) {
 		if (!this.closing) {
-			WorterbuchClient.log.error("WebSocket connection to server closed.");
+			WorterbuchClientImpl.log.error("WebSocket connection to server closed.");
 			this.pendingGets.clear();
 			this.pendingPGets.clear();
 			this.pendingDeletes.clear();
@@ -1132,11 +1189,28 @@ public class WorterbuchClient implements AutoCloseable {
 		}
 	}
 
+	private ClientMessage protoSwitchMessage(final int version) {
+		final var req = new ProtocolSwitchRequest(version);
+		final var msg = new ClientMessage();
+		msg.setProtocolSwitchRequest(req);
+		return msg;
+	}
+
 	private ClientMessage authMessage(final String token) {
 		final var auth = new AuthorizationRequest(token);
 		final var msg = new ClientMessage();
 		msg.setAuthorizationRequest(auth);
 		return msg;
+	}
+
+	void switchProtocol(final int protoVersion) {
+		String jsonMessage;
+		try {
+			jsonMessage = this.toJson(this.protoSwitchMessage(protoVersion));
+		} catch (final JsonProcessingException e) {
+			throw new SerializationFailed(e);
+		}
+		this.sendMessage(jsonMessage, this.onError);
 	}
 
 	void authorize(final Optional<String> authToken) {
@@ -1168,7 +1242,8 @@ public class WorterbuchClient implements AutoCloseable {
 					final var value = this.objectMapper.<T>readValue(valueContainer.toString(), kvpType);
 					callbackExecutor.execute(() -> pendingGet.callback.accept(Optional.ofNullable(value)));
 				} catch (final JsonProcessingException e) {
-					WorterbuchClient.log.error("Could not deserialize JSON '{}': {}", valueContainer, e.getMessage());
+					WorterbuchClientImpl.log.error("Could not deserialize JSON '{}': {}", valueContainer,
+							e.getMessage());
 					callbackExecutor.execute(() -> pendingGet.callback.accept(Optional.empty()));
 				}
 			} else {
@@ -1186,7 +1261,8 @@ public class WorterbuchClient implements AutoCloseable {
 					final var value = this.objectMapper.<T>readValue(deletedContainer.toString(), kvpType);
 					callbackExecutor.execute(() -> pendingDelete.callback.accept(Optional.ofNullable(value)));
 				} catch (final JsonProcessingException e) {
-					WorterbuchClient.log.error("Could not deserialize JSON '{}': {}", deletedContainer, e.getMessage());
+					WorterbuchClientImpl.log.error("Could not deserialize JSON '{}': {}", deletedContainer,
+							e.getMessage());
 					callbackExecutor.execute(() -> pendingDelete.callback.accept(Optional.empty()));
 				}
 			} else {
@@ -1204,7 +1280,8 @@ public class WorterbuchClient implements AutoCloseable {
 					final var value = this.objectMapper.<T>readValue(valueContainer.toString(), kvpType);
 					callbackExecutor.execute(() -> subscription.callback.accept(Optional.ofNullable(value)));
 				} catch (final JsonProcessingException e) {
-					WorterbuchClient.log.error("Could not deserialize JSON '{}': {}", valueContainer, e.getMessage());
+					WorterbuchClientImpl.log.error("Could not deserialize JSON '{}': {}", valueContainer,
+							e.getMessage());
 					callbackExecutor.execute(() -> subscription.callback.accept(Optional.empty()));
 				}
 			} else {
@@ -1218,12 +1295,14 @@ public class WorterbuchClient implements AutoCloseable {
 		if (pendingPGet != null) {
 			if (kvpsContainer != null) {
 				final var kvpsType = typeFactory.constructParametricType(List.class,
-						typeFactory.constructParametricType(KeyValuePair.class, pendingPGet.type));
+						typeFactory.constructParametricType(TypedKeyValuePair.class, pendingPGet.type));
 				try {
-					final List<KeyValuePair<T>> kvps = this.objectMapper.readValue(kvpsContainer.toString(), kvpsType);
+					final List<TypedKeyValuePair<T>> kvps = this.objectMapper.readValue(kvpsContainer.toString(),
+							kvpsType);
 					callbackExecutor.execute(() -> pendingPGet.callback.accept(kvps));
 				} catch (final JsonProcessingException e) {
-					WorterbuchClient.log.error("Could not deserialize JSON '{}': {}", kvpsContainer, e.getMessage());
+					WorterbuchClientImpl.log.error("Could not deserialize JSON '{}': {}", kvpsContainer,
+							e.getMessage());
 					callbackExecutor.execute(() -> pendingPGet.callback.accept(Collections.emptyList()));
 				}
 			} else {
@@ -1237,13 +1316,14 @@ public class WorterbuchClient implements AutoCloseable {
 		if (pendingPDelete != null) {
 			if (deletedContainer != null) {
 				final var kvpsType = typeFactory.constructParametricType(List.class,
-						typeFactory.constructParametricType(KeyValuePair.class, pendingPDelete.type));
+						typeFactory.constructParametricType(TypedKeyValuePair.class, pendingPDelete.type));
 				try {
-					final List<KeyValuePair<T>> kvps = this.objectMapper.readValue(deletedContainer.toString(),
+					final List<TypedKeyValuePair<T>> kvps = this.objectMapper.readValue(deletedContainer.toString(),
 							kvpsType);
 					callbackExecutor.execute(() -> pendingPDelete.callback.accept(kvps));
 				} catch (final JsonProcessingException e) {
-					WorterbuchClient.log.error("Could not deserialize JSON '{}': {}", deletedContainer, e.getMessage());
+					WorterbuchClientImpl.log.error("Could not deserialize JSON '{}': {}", deletedContainer,
+							e.getMessage());
 					callbackExecutor.execute(() -> pendingPDelete.callback.accept(Collections.emptyList()));
 				}
 			} else {
@@ -1256,25 +1336,28 @@ public class WorterbuchClient implements AutoCloseable {
 			final JsonNode deletedContainer, final TypeFactory typeFactory, final Executor callbackExecutor) {
 		if (pSubscription != null) {
 			final var kvpsType = typeFactory.constructParametricType(List.class,
-					typeFactory.constructParametricType(KeyValuePair.class, pSubscription.type));
+					typeFactory.constructParametricType(TypedKeyValuePair.class, pSubscription.type));
 			if (kvpsContainer != null) {
 				try {
-					final List<KeyValuePair<T>> kvps = this.objectMapper.readValue(kvpsContainer.toString(), kvpsType);
-					final var event = new PStateEvent<>(kvps, null);
+					final List<TypedKeyValuePair<T>> kvps = this.objectMapper.readValue(kvpsContainer.toString(),
+							kvpsType);
+					final var event = new TypedPStateEvent<>(kvps, null);
 					callbackExecutor.execute(() -> pSubscription.callback.accept(event));
 				} catch (final JsonProcessingException e) {
-					WorterbuchClient.log.error("Could not deserialize JSON '{}': {}", kvpsContainer, e.getMessage());
-					callbackExecutor.execute(() -> pSubscription.callback.accept(new PStateEvent<>(null, null)));
+					WorterbuchClientImpl.log.error("Could not deserialize JSON '{}': {}", kvpsContainer,
+							e.getMessage());
+					callbackExecutor.execute(() -> pSubscription.callback.accept(new TypedPStateEvent<>(null, null)));
 				}
 			} else if (deletedContainer != null) {
 				try {
-					final List<KeyValuePair<T>> kvps = this.objectMapper.readValue(deletedContainer.toString(),
+					final List<TypedKeyValuePair<T>> kvps = this.objectMapper.readValue(deletedContainer.toString(),
 							kvpsType);
-					final var event = new PStateEvent<>(null, kvps);
+					final var event = new TypedPStateEvent<>(null, kvps);
 					callbackExecutor.execute(() -> pSubscription.callback.accept(event));
 				} catch (final JsonProcessingException e) {
-					WorterbuchClient.log.error("Could not deserialize JSON '{}': {}", deletedContainer, e.getMessage());
-					callbackExecutor.execute(() -> pSubscription.callback.accept(new PStateEvent<>(null, null)));
+					WorterbuchClientImpl.log.error("Could not deserialize JSON '{}': {}", deletedContainer,
+							e.getMessage());
+					callbackExecutor.execute(() -> pSubscription.callback.accept(new TypedPStateEvent<>(null, null)));
 				}
 			}
 		}
@@ -1282,7 +1365,7 @@ public class WorterbuchClient implements AutoCloseable {
 
 	private void doClose() {
 		this.closing = true;
-		WorterbuchClient.log.info("Closing worterbuch client.");
+		WorterbuchClientImpl.log.info("Closing worterbuch client.");
 		try {
 			this.client.close();
 		} catch (final Exception e) {
@@ -1290,7 +1373,25 @@ public class WorterbuchClient implements AutoCloseable {
 		}
 	}
 
-	private boolean protocolVersionIsSupported(final String protocolVersion) {
-		return Constants.SUPPORTED_PROTOCOL_VERSIONS.contains(protocolVersion);
+	private Optional<Integer> compatibleProtocolVersion(final List<List<Object>> supportedVersions) {
+		final var major = Constants.PROTOCOL_VERSION.major();
+		final var minor = Constants.PROTOCOL_VERSION.minor();
+
+		for (final List<Object> version : supportedVersions) {
+			if (version.size() < 2) {
+				continue;
+			}
+			final var majS = version.get(0);
+			final var minS = version.get(1);
+			if (majS instanceof final Number majorServer) {
+				if (minS instanceof final Number minorServer) {
+					if ((majorServer.intValue() == major) && (minorServer.intValue() >= minor)) {
+						return Optional.of(major);
+					}
+				}
+			}
+		}
+
+		return Optional.empty();
 	}
 }

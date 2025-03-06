@@ -28,11 +28,12 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
-import net.bbmsoft.worterbuch.client.WorterbuchClient;
-import net.bbmsoft.worterbuch.client.WorterbuchException;
+import net.bbmsoft.worterbuch.client.WorterbuchClientImpl;
+import net.bbmsoft.worterbuch.client.api.WorterbuchClient;
+import net.bbmsoft.worterbuch.client.api.WorterbuchException;
 import net.bbmsoft.worterbuch.speedtester.SpeedTester.StatusListener;
 
-public class Agent {
+public final class Agent {
 
 	private final int id;
 	private final StatusListener statusListener;
@@ -42,7 +43,7 @@ public class Agent {
 
 	private long sentOffset;
 	private long receivedOffset;
-	private final WorterbuchClient wb;
+	private final WorterbuchClientImpl wb;
 
 	public Agent(final int id, final double targetRate, final StatusListener statusListener)
 			throws InterruptedException, TimeoutException, URISyntaxException, WorterbuchException {
@@ -65,7 +66,7 @@ public class Agent {
 						+ (port != null ? port : "8081")));
 
 		System.err.println("Connecting to worterbuch server " + uri);
-		this.wb = WorterbuchClient.connect(Arrays.asList(uri), Optional.empty(), this.executor, this::onDisconnect,
+		this.wb = WorterbuchClientImpl.connect(Arrays.asList(uri), Optional.empty(), this.executor, this::onDisconnect,
 				this::onError);
 	}
 
@@ -77,7 +78,7 @@ public class Agent {
 		this.executor.scheduleAtFixedRate(() -> this.reportStatus(this.wb), 1, 1, TimeUnit.SECONDS);
 	}
 
-	private void ping(final WorterbuchClient wb) {
+	private void ping(final WorterbuchClientImpl wb) {
 		wb.set(this.key, ++this.sentOffset, this::onError);
 	}
 

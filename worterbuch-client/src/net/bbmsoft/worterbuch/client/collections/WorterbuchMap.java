@@ -33,8 +33,9 @@ import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
-import net.bbmsoft.worterbuch.client.KeyValuePair;
-import net.bbmsoft.worterbuch.client.WorterbuchClient;
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
+import net.bbmsoft.worterbuch.client.api.TypedKeyValuePair;
+import net.bbmsoft.worterbuch.client.api.WorterbuchClient;
 
 /**
  * A {@link Map} implementation that uses worterbuch as its data store. This
@@ -67,6 +68,7 @@ public class WorterbuchMap<T> implements Map<String, T> {
 	private final Class<T> valueType;
 	private final Consumer<? super Throwable> errorHandler;
 
+	@SuppressFBWarnings(value = "EI_EXPOSE_REP2")
 	public WorterbuchMap(final WorterbuchClient wbClient, final String application, final String namespace,
 			final String mapName, final Class<T> valueType, final Consumer<? super Throwable> errorHandler) {
 		this.wbClient = wbClient;
@@ -213,7 +215,7 @@ public class WorterbuchMap<T> implements Map<String, T> {
 		}
 	}
 
-	private Map.Entry<String, T> toEntry(final KeyValuePair<T> kvp) {
+	private Map.Entry<String, T> toEntry(final TypedKeyValuePair<T> kvp) {
 		return new Map.Entry<>() {
 
 			@Override

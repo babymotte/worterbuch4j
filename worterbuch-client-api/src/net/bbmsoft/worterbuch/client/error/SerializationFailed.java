@@ -17,21 +17,14 @@
  *  along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-package net.bbmsoft.worterbuch.client.pending;
+package net.bbmsoft.worterbuch.client.error;
 
-import java.util.function.Consumer;
+public class SerializationFailed extends RuntimeException {
 
-import net.bbmsoft.worterbuch.client.api.TypedPStateEvent;
+	private static final long serialVersionUID = -5890810398616051260L;
 
-public class PSubscription<T> {
-
-	public final Consumer<TypedPStateEvent<T>> callback;
-
-	public final Class<T> type;
-
-	public PSubscription(final Consumer<TypedPStateEvent<T>> callback, final Class<T> type) {
-		super();
-		this.callback = callback;
-		this.type = type;
+	public SerializationFailed(final Exception cause) {
+		super(cause);
 	}
+
 }

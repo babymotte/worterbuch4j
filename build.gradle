@@ -1,6 +1,6 @@
 plugins {
   id 'java'
-  id 'com.github.spotbugs' version '4.7.5'
+  id 'com.github.spotbugs' version '6.1.7'
 }
 
 tasks.named('wrapper') {
@@ -39,9 +39,9 @@ subprojects {
 
 allprojects {
     
-    spotbugs {
-		toolVersion = "4.2.2"
-    }
+    // spotbugs {
+		//   toolVersion = "4.2.2"
+    // }
 
 	spotbugsMain {
 	    reports {

@@ -17,7 +17,7 @@
  *  along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-package net.bbmsoft.worterbuch.client;
+package net.bbmsoft.worterbuch.client.api;
 
 public class WorterbuchException extends Exception {
 

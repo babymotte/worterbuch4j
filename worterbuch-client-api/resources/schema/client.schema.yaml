@@ -18,6 +18,16 @@
 title: ClientMessage
 type: object
 properties:
+  protocolSwitchRequest:
+    description: A message sent by a client to request switching to the specified protocol major version
+    type: object
+    properties:
+      version:
+        type: integer
+        format: u32
+    additionalProperties: false
+    required:
+      - version
   authorizationRequest:
     description: A message sent by a client to acquire authorization from the server
     type: object
@@ -29,6 +39,20 @@ properties:
       - authToken
   get:
     description: A message sent by a client to request the value of the provided key from the server
+    type: object
+    properties:
+      transactionId:
+        description: A unique transaction ID
+        type: integer
+        format: u64
+      key:
+        type: string
+    additionalProperties: false
+    required:
+      - transactionId
+      - key
+  cGet:
+    description: A message sent by a client to request the value and the value's version number of the provided key from the server
     type: object
     properties:
       transactionId:
@@ -68,6 +92,26 @@ properties:
         type: string
       value:
         description: The new value for the key
+    additionalProperties: false
+    required:
+      - transactionId
+      - key
+      - value
+  cSet:
+    description: A message sent by a client to set a new value for a key using compare and swap
+    type: object
+    properties:
+      transactionId:
+        description: A unique transaction ID
+        type: integer
+        format: u64
+      key:
+        description: The key for which to set the value
+        type: string
+      value:
+        description: The new value for the key
+      version:
+        description: The current value version or 0 if the value does not exist yet
     additionalProperties: false
     required:
       - transactionId
@@ -291,6 +335,34 @@ properties:
     additionalProperties: false
     required:
       - transactionId
+  lock:
+    description: A message sent by a client to request a lock on the specified key
+    type: object
+    properties:
+      transactionId:
+        description: A unique transaction ID
+        type: integer
+        format: u64
+      key:
+        type: string
+    additionalProperties: false
+    required:
+      - transactionId
+      - key
+  releaseLock:
+    description: A message sent by a client to request releasing a lock on the specified key
+    type: object
+    properties:
+      transactionId:
+        description: A unique transaction ID
+        type: integer
+        format: u64
+      key:
+        type: string
+    additionalProperties: false
+    required:
+      - transactionId
+      - key
   # transform:
   #   description: A message sent by the client to set up a server-internal state transformer
   #   type: object

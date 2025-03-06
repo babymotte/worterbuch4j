@@ -8,7 +8,8 @@ Bundle-Version: 1.0.0.${tstamp}
 	osgi.core;version='7.0.0',\
 	osgi.annotation;version='7.0.0',\
 	osgi.cmpn;version='7.0.0',\
-	worterbuch-client;version=latest
+	worterbuch-client;version=latest,\
+	worterbuch-client-api
 
 javac.source: 17
 javac.target: 17

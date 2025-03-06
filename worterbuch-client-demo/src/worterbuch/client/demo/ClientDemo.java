@@ -35,10 +35,10 @@ import org.osgi.service.component.annotations.Deactivate;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import net.bbmsoft.worterbuch.client.KeyValuePair;
-import net.bbmsoft.worterbuch.client.WorterbuchClient;
-import net.bbmsoft.worterbuch.client.WorterbuchException;
+import net.bbmsoft.worterbuch.client.WorterbuchClientImpl;
+import net.bbmsoft.worterbuch.client.api.WorterbuchException;
 import net.bbmsoft.worterbuch.client.collections.AsyncWorterbuchList;
+import net.bbmsoft.worterbuch.client.model.KeyValuePair;
 
 @Component
 public class ClientDemo {
@@ -104,8 +104,8 @@ public class ClientDemo {
 
 		final var authToken = System.getenv("WORTERBUCH_AUTH_TOKEN");
 
-		final var wb = authToken != null ? WorterbuchClient.connect(uris, authToken, this::exit, this::error)
-				: WorterbuchClient.connect(uris, this::exit, this::error);
+		final var wb = authToken != null ? WorterbuchClientImpl.connect(uris, authToken, this::exit, this::error)
+				: WorterbuchClientImpl.connect(uris, this::exit, this::error);
 
 		wb.pLs("$SYS/?/?", System.err::println, System.err::println);
 
@@ -115,7 +115,7 @@ public class ClientDemo {
 		final var list = new AsyncWorterbuchList<>(wb, "testapp", "collections", "asyncList", HelloWorld.class,
 				this::error);
 
-		wb.setLastWill(new KeyValuePair<?>[] { KeyValuePair.of("testapp/state/running", false) }, System.err::println);
+		wb.setLastWill(new KeyValuePair[] { new KeyValuePair("testapp/state/running", false) }, System.err::println);
 		wb.setGraveGoods(new String[] { "testapp/state/collections/asyncList" }, System.err::println);
 
 		var counter = list.size() - 1;

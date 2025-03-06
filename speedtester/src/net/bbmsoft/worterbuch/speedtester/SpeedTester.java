@@ -31,7 +31,9 @@ import net.bbmsoft.worterbuch.speedtester.impl.Agent;
 import net.bbmsoft.worterbuch.speedtester.impl.Utils;
 
 @Component
-public class SpeedTester {
+public final class SpeedTester {
+
+	final static Random rand = new Random();
 
 	static class Data {
 		public long lastOffset;
@@ -82,10 +84,9 @@ public class SpeedTester {
 
 			this.executor.scheduleAtFixedRate(this::printStatus, 1, 1, TimeUnit.SECONDS);
 
-			final var rand = new Random();
-
 			for (final Agent agent : this.agents) {
-				this.executor.schedule(agent::start, Math.round(1000 * rand.nextDouble()), TimeUnit.MILLISECONDS);
+				this.executor.schedule(agent::start, Math.round(1000 * SpeedTester.rand.nextDouble()),
+						TimeUnit.MILLISECONDS);
 			}
 		} catch (final Throwable th) {
 			th.printStackTrace();

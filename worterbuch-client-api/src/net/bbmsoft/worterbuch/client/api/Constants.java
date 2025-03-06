@@ -17,21 +17,18 @@
  *  along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-package net.bbmsoft.worterbuch.client.pending;
+package net.bbmsoft.worterbuch.client.api;
 
-import java.util.function.Consumer;
+public interface Constants {
 
-import net.bbmsoft.worterbuch.client.api.TypedPStateEvent;
+	public static record ProtocolVersion(int major, int minor) {
 
-public class PSubscription<T> {
+		@Override
+		public String toString() {
+			return this.major + "." + this.minor;
+		}
 
-	public final Consumer<TypedPStateEvent<T>> callback;
-
-	public final Class<T> type;
-
-	public PSubscription(final Consumer<TypedPStateEvent<T>> callback, final Class<T> type) {
-		super();
-		this.callback = callback;
-		this.type = type;
 	}
+
+	public static final ProtocolVersion PROTOCOL_VERSION = new ProtocolVersion(1, 1);
 }

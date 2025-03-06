@@ -29,7 +29,8 @@ import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.function.Consumer;
 
-import net.bbmsoft.worterbuch.client.WorterbuchClient;
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
+import net.bbmsoft.worterbuch.client.api.WorterbuchClient;
 
 /**
  * A {@link Map} implementation that automatically synchronizes its contents to
@@ -50,16 +51,19 @@ public class AsyncWorterbuchMap<T> implements Map<String, T> {
 	private final Consumer<? super Throwable> errorHandler;
 	private final Class<T> valueType;
 
+	@SuppressFBWarnings(value = "EI_EXPOSE_REP2")
 	public AsyncWorterbuchMap(final WorterbuchClient wbClient, final String application, final String namespace,
-			final String mapName, final Class<T> valueType, final Consumer<? super Throwable> errorHandler)
-			throws ExecutionException {
+			final String mapName, final Class<T> valueType, final Consumer<? super Throwable> errorHandler) {
 		this.wbClient = wbClient;
 		this.valueType = valueType;
 		this.errorHandler = errorHandler;
 		this.rootKey = application + "/state/" + namespace + "/" + mapName;
 		this.localCache = new HashMap<>();
+	}
+
+	public void init() throws ExecutionException {
 		try {
-			final var kvps = wbClient.pGet(this.rootKey + "/?", valueType).get();
+			final var kvps = this.wbClient.pGet(this.rootKey + "/?", this.valueType).get();
 			kvps.forEach(kvp -> this.localCache.put(Utils.unescape(kvp.getKey().substring(this.rootKey.length() + 1)),
 					kvp.getValue()));
 		} catch (final InterruptedException e) {

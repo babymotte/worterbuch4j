@@ -17,19 +17,19 @@
  *  along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-package net.bbmsoft.worterbuch.client;
+package net.bbmsoft.worterbuch.client.api;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
-public class PStateEvent<T> {
+public class TypedPStateEvent<T> {
 
-	public final List<KeyValuePair<T>> keyValuePairs;
+	public final List<TypedKeyValuePair<T>> keyValuePairs;
 
-	public final List<KeyValuePair<T>> deleted;
+	public final List<TypedKeyValuePair<T>> deleted;
 
-	public PStateEvent(final List<KeyValuePair<T>> keyValuePairs, final List<KeyValuePair<T>> deleted) {
+	public TypedPStateEvent(final List<TypedKeyValuePair<T>> keyValuePairs, final List<TypedKeyValuePair<T>> deleted) {
 		super();
 		this.keyValuePairs = keyValuePairs != null ? new ArrayList<>(keyValuePairs) : null;
 		this.deleted = deleted != null ? new ArrayList<>(deleted) : null;
@@ -51,7 +51,7 @@ public class PStateEvent<T> {
 		if (this.getClass() != obj.getClass()) {
 			return false;
 		}
-		final PStateEvent<?> other = (PStateEvent<?>) obj;
+		final TypedPStateEvent<?> other = (TypedPStateEvent<?>) obj;
 		return Objects.equals(this.deleted, other.deleted) && Objects.equals(this.keyValuePairs, other.keyValuePairs);
 	}
 
