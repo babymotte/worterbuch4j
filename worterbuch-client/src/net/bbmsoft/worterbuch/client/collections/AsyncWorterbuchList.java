@@ -26,7 +26,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.ListIterator;
 import java.util.concurrent.ExecutionException;
-import java.util.function.Consumer;
 
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import net.bbmsoft.worterbuch.client.WorterbuchClientImpl;
@@ -34,18 +33,16 @@ import net.bbmsoft.worterbuch.client.WorterbuchClientImpl;
 public class AsyncWorterbuchList<T> implements List<T> {
 
 	private final WorterbuchClientImpl wbClient;
-	private final Consumer<? super Throwable> errorHandler;
 	private final String key;
 	private final List<T> localCache;
 	private final Class<T> valueType;
 
 	@SuppressFBWarnings(value = "EI_EXPOSE_REP2")
 	public AsyncWorterbuchList(final WorterbuchClientImpl wbClient, final String application, final String namespace,
-			final String listName, final Class<T> valueType, final Consumer<? super Throwable> errorHandler) {
+			final String listName, final Class<T> valueType) {
 
 		this.wbClient = wbClient;
 		this.valueType = valueType;
-		this.errorHandler = errorHandler;
 		this.key = application + "/state/" + namespace + "/" + listName;
 		this.localCache = new ArrayList<>();
 	}
@@ -142,7 +139,7 @@ public class AsyncWorterbuchList<T> implements List<T> {
 	@Override
 	public void clear() {
 		this.localCache.clear();
-		this.wbClient.delete(this.key, this.errorHandler);
+		this.wbClient.delete(this.key);
 	}
 
 	@Override
@@ -197,9 +194,9 @@ public class AsyncWorterbuchList<T> implements List<T> {
 
 	private void store() {
 		if (this.localCache.isEmpty()) {
-			this.wbClient.delete(this.key, this.errorHandler);
+			this.wbClient.delete(this.key);
 		} else {
-			this.wbClient.set(this.key, this.localCache, this.errorHandler);
+			this.wbClient.set(this.key, this.localCache);
 		}
 	}
 

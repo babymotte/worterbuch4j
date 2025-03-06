@@ -19,14 +19,8 @@
 
 package net.bbmsoft.worterbuch.client.pending;
 
-import java.util.function.Consumer;
+import java.util.concurrent.CompletableFuture;
 
-public class PendingSPubInit<T> {
+public record PendingSPubInit<T>(CompletableFuture<Long> callback) {
 
-	public final Consumer<Boolean> callback;
-
-	public PendingSPubInit(final Consumer<Boolean> callback) {
-		super();
-		this.callback = callback;
-	}
 }

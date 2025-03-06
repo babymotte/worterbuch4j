@@ -72,14 +72,14 @@ public final class Agent {
 
 	public void start() {
 
-		this.wb.subscribe(this.key, false, true, Long.class, this::pong, this::onError);
+		this.wb.subscribe(this.key, false, true, Long.class, this::pong);
 
 		this.executor.scheduleAtFixedRate(() -> this.ping(this.wb), 0, this.delay, TimeUnit.MICROSECONDS);
 		this.executor.scheduleAtFixedRate(() -> this.reportStatus(this.wb), 1, 1, TimeUnit.SECONDS);
 	}
 
 	private void ping(final WorterbuchClientImpl wb) {
-		wb.set(this.key, ++this.sentOffset, this::onError);
+		wb.set(this.key, ++this.sentOffset);
 	}
 
 	private void pong(final Optional<Long> msg) {

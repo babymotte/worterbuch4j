@@ -23,15 +23,6 @@ import java.util.function.Consumer;
 
 import net.bbmsoft.worterbuch.client.api.TypedPStateEvent;
 
-public class PSubscription<T> {
+public record PSubscription<T>(Consumer<TypedPStateEvent<T>> callback, Class<T> type) {
 
-	public final Consumer<TypedPStateEvent<T>> callback;
-
-	public final Class<T> type;
-
-	public PSubscription(final Consumer<TypedPStateEvent<T>> callback, final Class<T> type) {
-		super();
-		this.callback = callback;
-		this.type = type;
-	}
 }

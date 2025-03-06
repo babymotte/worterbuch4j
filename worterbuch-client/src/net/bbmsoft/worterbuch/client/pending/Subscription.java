@@ -23,15 +23,6 @@ import java.lang.reflect.Type;
 import java.util.Optional;
 import java.util.function.Consumer;
 
-public class Subscription<T> {
+public record Subscription<T>(Consumer<Optional<T>> callback, Type type) {
 
-	public final Consumer<Optional<T>> callback;
-
-	public final Type type;
-
-	public Subscription(final Consumer<Optional<T>> callback, final Type type) {
-		super();
-		this.callback = callback;
-		this.type = type;
-	}
 }

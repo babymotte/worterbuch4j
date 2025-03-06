@@ -27,7 +27,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
-import java.util.function.Consumer;
 
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import net.bbmsoft.worterbuch.client.api.WorterbuchClient;
@@ -48,15 +47,13 @@ public class AsyncWorterbuchMap<T> implements Map<String, T> {
 	private final WorterbuchClient wbClient;
 	private final Map<String, T> localCache;
 	private final String rootKey;
-	private final Consumer<? super Throwable> errorHandler;
 	private final Class<T> valueType;
 
 	@SuppressFBWarnings(value = "EI_EXPOSE_REP2")
 	public AsyncWorterbuchMap(final WorterbuchClient wbClient, final String application, final String namespace,
-			final String mapName, final Class<T> valueType, final Consumer<? super Throwable> errorHandler) {
+			final String mapName, final Class<T> valueType) {
 		this.wbClient = wbClient;
 		this.valueType = valueType;
-		this.errorHandler = errorHandler;
 		this.rootKey = application + "/state/" + namespace + "/" + mapName;
 		this.localCache = new HashMap<>();
 	}
@@ -144,7 +141,7 @@ public class AsyncWorterbuchMap<T> implements Map<String, T> {
 	}
 
 	private void putRemote(final String key, final T value) {
-		this.wbClient.set(this.fullKey(key), value, this.errorHandler);
+		this.wbClient.set(this.fullKey(key), value);
 	}
 
 	private void removeRemote(final Object key) {
@@ -152,7 +149,7 @@ public class AsyncWorterbuchMap<T> implements Map<String, T> {
 	}
 
 	private void putAllRemote(final Map<? extends String, ? extends T> m) {
-		m.forEach((k, v) -> this.wbClient.set(this.fullKey(k), v, this.errorHandler));
+		m.forEach((k, v) -> this.wbClient.set(this.fullKey(k), v));
 	}
 
 	private void clearRemote() {

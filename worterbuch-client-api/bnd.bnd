@@ -13,4 +13,5 @@ src = src, generated/model
 Export-Package: \
 	net.bbmsoft.worterbuch.client.model,\
 	net.bbmsoft.worterbuch.client.api,\
-	net.bbmsoft.worterbuch.client.error
+	net.bbmsoft.worterbuch.client.error,\
+	net.bbmsoft.worterbuch.client.api.util

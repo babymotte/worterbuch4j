@@ -30,7 +30,6 @@ import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
 import java.util.function.BiConsumer;
-import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
@@ -66,13 +65,11 @@ public class WorterbuchMap<T> implements Map<String, T> {
 	private final String rootKey;
 	private final WorterbuchClient wbClient;
 	private final Class<T> valueType;
-	private final Consumer<? super Throwable> errorHandler;
 
 	@SuppressFBWarnings(value = "EI_EXPOSE_REP2")
 	public WorterbuchMap(final WorterbuchClient wbClient, final String application, final String namespace,
-			final String mapName, final Class<T> valueType, final Consumer<? super Throwable> errorHandler) {
+			final String mapName, final Class<T> valueType) {
 		this.wbClient = wbClient;
-		this.errorHandler = errorHandler;
 		this.rootKey = application + "/state/" + namespace + "/" + mapName;
 		this.valueType = valueType;
 	}
@@ -141,7 +138,7 @@ public class WorterbuchMap<T> implements Map<String, T> {
 		try {
 			final var state = this.wbClient.get(fullKey, this.valueType).get();
 			final var currentValue = state.orElse(null);
-			this.wbClient.set(fullKey, value, this.errorHandler);
+			this.wbClient.set(fullKey, value);
 			return currentValue;
 		} catch (final InterruptedException e) {
 			Thread.currentThread().interrupt();
@@ -269,11 +266,11 @@ public class WorterbuchMap<T> implements Map<String, T> {
 					theExecutor.execute(() -> listener.accept(trimmedKey, null));
 				});
 			}
-		}, this.errorHandler);
+		});
 		return tid;
 	}
 
 	public void removeListener(final long transactionId) {
-		this.wbClient.unsubscribeLs(transactionId, this.errorHandler);
+		this.wbClient.unsubscribeLs(transactionId);
 	}
 }

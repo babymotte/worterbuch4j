@@ -25,7 +25,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
-import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 import com.google.common.collect.BiMap;
@@ -39,12 +38,10 @@ public class WorterbuchBiMap implements BiMap<String, String> {
 
 	private final String rootKey;
 	private final WorterbuchClientImpl wbClient;
-	private final Consumer<? super Throwable> errorHandler;
 
 	public WorterbuchBiMap(final WorterbuchClientImpl wbClient, final String application, final String namespace,
-			final String mapName, final Consumer<? super Throwable> errorHandler) {
+			final String mapName) {
 		this.wbClient = wbClient;
-		this.errorHandler = errorHandler;
 		this.rootKey = application + "/state/" + namespace + "/" + mapName;
 	}
 
@@ -116,7 +113,7 @@ public class WorterbuchBiMap implements BiMap<String, String> {
 		try {
 			final var state = this.wbClient.get(fullKey, String.class).get();
 			final var currentValue = state.orElse(null);
-			this.wbClient.set(fullKey, escapedValue, this.errorHandler);
+			this.wbClient.set(fullKey, escapedValue);
 			return currentValue;
 		} catch (final InterruptedException e) {
 			Thread.currentThread().interrupt();

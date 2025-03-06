@@ -21,94 +21,102 @@ package net.bbmsoft.worterbuch.client.api;
 
 import java.util.List;
 import java.util.Optional;
-import java.util.concurrent.Future;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executor;
 import java.util.function.Consumer;
+import java.util.function.Function;
 
 import org.osgi.annotation.versioning.ProviderType;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 
+import net.bbmsoft.worterbuch.client.api.util.Tuple;
 import net.bbmsoft.worterbuch.client.model.KeyValuePair;
 
 @ProviderType
-public interface WorterbuchClient {
+public interface WorterbuchClient extends AutoCloseable {
 
-	void close();
+	<T> void set(String key, T value);
 
-	<T> long set(String key, T value, Consumer<? super Throwable> onError);
+	<T> void publish(String key, T value);
 
-	<T> long publish(String key, T value, Consumer<? super Throwable> onError);
+	<T> CompletableFuture<Long> initPubStream(String key);
 
-	<T> Future<Long> initPubStream(String key, Consumer<? super Throwable> onError);
+	<T> void streamPub(long transactionId, T value);
 
-	<T> long initPubStream(String key, Consumer<Long> callback, Consumer<? super Throwable> onError);
+	<T> CompletableFuture<Optional<T>> get(String key, Class<T> type);
 
-	<T> void streamPub(long transactionId, T value, Consumer<? super Throwable> onError);
+	<T> CompletableFuture<Optional<T[]>> getArray(String key, Class<T> elementType);
 
-	<T> Future<Optional<T>> get(String key, Class<T> type);
+	<T> CompletableFuture<List<TypedKeyValuePair<T>>> pGet(String pattern, Class<T> type);
 
-	<T> long get(String key, Class<T> type, Consumer<Optional<T>> callback, Consumer<? super Throwable> onError);
+	<T> CompletableFuture<Optional<T>> delete(String key, Class<T> type);
 
-	<T> Future<Optional<T[]>> getArray(String key, Class<T> elementType);
+	void delete(String key);
 
-	<T> long getArray(String key, Class<T> elementType, Consumer<Optional<T[]>> callback,
-			Consumer<? super Throwable> onError);
+	<T> CompletableFuture<List<TypedKeyValuePair<T>>> pDelete(String pattern, Class<T> type);
 
-	<T> Future<List<TypedKeyValuePair<T>>> pGet(String pattern, Class<T> type);
+	void pDelete(String pattern);
 
-	<T> long pGet(String pattern, Class<T> type, Consumer<List<TypedKeyValuePair<T>>> callback,
-			Consumer<? super Throwable> onError);
+	CompletableFuture<List<String>> ls(String parent);
 
-	<T> Future<Optional<T>> delete(String key, Class<T> type);
+	CompletableFuture<List<String>> pLs(String parentPattern);
 
-	<T> long delete(String key, Class<T> type, Consumer<Optional<T>> callback, Consumer<? super Throwable> onError);
+	<T> long subscribe(String key, boolean unique, boolean liveOnly, Class<T> type, Consumer<Optional<T>> callback);
 
-	long delete(String key, Consumer<? super Throwable> onError);
-
-	<T> Future<List<TypedKeyValuePair<T>>> pDelete(String pattern, Class<T> type);
-
-	Future<Void> pDelete(String pattern);
-
-	<T> long pDelete(String pattern, Class<T> type, Consumer<List<TypedKeyValuePair<T>>> callback,
-			Consumer<? super Throwable> onError);
-
-	long pDelete(String pattern, Runnable callback, Consumer<? super Throwable> onError);
-
-	Future<List<String>> ls(String parent);
-
-	long ls(String parent, Consumer<List<String>> callback, Consumer<? super Throwable> onError);
-
-	Future<List<String>> pLs(String parentPattern);
-
-	long pLs(String parentPattern, Consumer<List<String>> callback, Consumer<? super Throwable> onError);
-
-	<T> long subscribe(String key, boolean unique, boolean liveOnly, Class<T> type, Consumer<Optional<T>> callback,
-			Consumer<? super Throwable> onError);
+	default <T> long subscribe(final String key, final boolean unique, final boolean liveOnly, final Class<T> type,
+			final Consumer<Optional<T>> callback, final Consumer<? super Throwable> onError, final Executor executor) {
+		return this.subscribe(key, unique, liveOnly, type, v -> executor.execute(() -> callback.accept(v)));
+	}
 
 	<T> long subscribeArray(String key, boolean unique, boolean liveOnly, Class<T> elementType,
-			Consumer<Optional<T[]>> callback, Consumer<? super Throwable> onError);
+			Consumer<Optional<T[]>> callback);
+
+	default <T> long subscribeArray(final String key, final boolean unique, final boolean liveOnly,
+			final Class<T> elementType, final Consumer<Optional<T[]>> callback,
+			final Consumer<? super Throwable> onError, final Executor executor) {
+		return this.subscribeArray(key, unique, liveOnly, elementType, v -> executor.execute(() -> callback.accept(v)));
+	}
 
 	<T> long pSubscribe(String pattern, boolean unique, boolean liveOnly, Optional<Long> aggregateEvents, Class<T> type,
-			Consumer<TypedPStateEvent<T>> callback, Consumer<? super Throwable> onError);
+			Consumer<TypedPStateEvent<T>> callback);
 
-	void unsubscribe(long transactionId, Consumer<? super Throwable> onError);
+	default <T> long pSubscribe(final String pattern, final boolean unique, final boolean liveOnly,
+			final Optional<Long> aggregateEvents, final Class<T> type, final Consumer<TypedPStateEvent<T>> callback,
+			final Executor executor) {
+		return this.pSubscribe(pattern, unique, liveOnly, aggregateEvents, type,
+				v -> executor.execute(() -> callback.accept(v)));
+	}
 
-	long subscribeLs(String parent, Consumer<List<String>> callback, Consumer<? super Throwable> onError);
+	void unsubscribe(long transactionId);
 
-	void unsubscribeLs(long transactionId, Consumer<? super Throwable> onError);
+	long subscribeLs(String parent, Consumer<List<String>> callback);
+
+	default long subscribeLs(final String parent, final Consumer<List<String>> callback,
+			final Consumer<? super Throwable> onError, final Executor executor) {
+		return this.subscribeLs(parent, v -> executor.execute(() -> callback.accept(v)));
+	}
+
+	void unsubscribeLs(long transactionId);
 
 	ObjectMapper getObjectMapper();
 
 	String getClientId();
 
-	Future<Optional<String[]>> getGraveGoods();
+	CompletableFuture<Optional<String[]>> getGraveGoods();
 
-	Future<Optional<KeyValuePair[]>> getLastWill();
+	CompletableFuture<Optional<KeyValuePair[]>> getLastWill();
 
-	long setGraveGoods(String[] graveGoods, Consumer<? super Throwable> onError);
+	void setGraveGoods(String[] graveGoods);
 
-	long setLastWill(KeyValuePair[] lastWill, Consumer<? super Throwable> onError);
+	void setLastWill(KeyValuePair[] lastWill);
 
-	long setClientName(String name);
+	void setClientName(String name);
+
+	<T> CompletableFuture<Boolean> cSet(String key, T value, long version);
+
+	<T> CompletableFuture<Tuple<T, Long>> cGet(String key, T value, Class<T> type);
+
+	<T> void update(String key, Function<T, T> transform, Class<T> type);
 
 }

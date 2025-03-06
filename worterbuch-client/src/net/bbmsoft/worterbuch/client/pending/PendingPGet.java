@@ -20,19 +20,10 @@
 package net.bbmsoft.worterbuch.client.pending;
 
 import java.util.List;
-import java.util.function.Consumer;
+import java.util.concurrent.CompletableFuture;
 
 import net.bbmsoft.worterbuch.client.api.TypedKeyValuePair;
 
-public class PendingPGet<T> {
+public record PendingPGet<T>(CompletableFuture<List<TypedKeyValuePair<T>>> callback, Class<T> type) {
 
-	public final Consumer<List<TypedKeyValuePair<T>>> callback;
-
-	public final Class<T> type;
-
-	public PendingPGet(final Consumer<List<TypedKeyValuePair<T>>> callback, final Class<T> type) {
-		super();
-		this.callback = callback;
-		this.type = type;
-	}
 }

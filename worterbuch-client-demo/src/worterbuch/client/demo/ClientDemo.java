@@ -107,16 +107,14 @@ public class ClientDemo {
 		final var wb = authToken != null ? WorterbuchClientImpl.connect(uris, authToken, this::exit, this::error)
 				: WorterbuchClientImpl.connect(uris, this::exit, this::error);
 
-		wb.pLs("$SYS/?/?", System.err::println, System.err::println);
+		wb.pLs("$SYS/?/?").thenAccept(System.err::println);
 
-		wb.subscribeArray("testapp/state/collections/asyncList", true, true, HelloWorld.class, this::printOptional,
-				System.err::println);
+		wb.subscribeArray("testapp/state/collections/asyncList", true, true, HelloWorld.class, this::printOptional);
 
-		final var list = new AsyncWorterbuchList<>(wb, "testapp", "collections", "asyncList", HelloWorld.class,
-				this::error);
+		final var list = new AsyncWorterbuchList<>(wb, "testapp", "collections", "asyncList", HelloWorld.class);
 
-		wb.setLastWill(new KeyValuePair[] { new KeyValuePair("testapp/state/running", false) }, System.err::println);
-		wb.setGraveGoods(new String[] { "testapp/state/collections/asyncList" }, System.err::println);
+		wb.setLastWill(new KeyValuePair[] { new KeyValuePair("testapp/state/running", false) });
+		wb.setGraveGoods(new String[] { "testapp/state/collections/asyncList" });
 
 		var counter = list.size() - 1;
 		var inverted = counter >= 2;
