@@ -1,11 +1,14 @@
-Bundle-Version: 1.0.0.${tstamp}
+Bundle-Version: 10.0.0
+
+Require-Capability: compile-only
 
 -baseline: *
 -buildpath: \
 	osgi.annotation;version='7.0.0',\
 	com.fasterxml.jackson.core.jackson-core;version='2.17',\
 	com.fasterxml.jackson.core.jackson-databind;version='2.17',\
-	com.fasterxml.jackson.core.jackson-annotations;version='2.17'
+	com.fasterxml.jackson.core.jackson-annotations;version='2.17',\
+	spotbugs-annotations
 
 javac.source: 17
 javac.target: 17
@@ -15,4 +18,5 @@ Export-Package: \
 	net.bbmsoft.worterbuch.client.model,\
 	net.bbmsoft.worterbuch.client.api,\
 	net.bbmsoft.worterbuch.client.error,\
-	net.bbmsoft.worterbuch.client.api.util
+	net.bbmsoft.worterbuch.client.api.util,\
+	net.bbmsoft.worterbuch.client.api.util.type

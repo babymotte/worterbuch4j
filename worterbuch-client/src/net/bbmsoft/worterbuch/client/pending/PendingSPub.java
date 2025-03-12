@@ -17,23 +17,15 @@
  *  along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-package net.bbmsoft.worterbuch.client.collections;
+package net.bbmsoft.worterbuch.client.pending;
 
-public class Utils {
+import java.util.concurrent.CompletableFuture;
 
-	public static String escape(final String string) {
-		return string.replace("/", "%2F");
-	}
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
+import net.bbmsoft.worterbuch.client.error.Result;
+import net.bbmsoft.worterbuch.client.model.ClientMessage;
 
-	public static String unescape(final String string) {
-		return string.replace("%2F", "/");
-	}
+@SuppressFBWarnings({ "EI_EXPOSE_REP", "EI_EXPOSE_REP2" })
+public record PendingSPub(ClientMessage request, CompletableFuture<Result<Void>> callback) {
 
-	public static String fullKey(final Object key, String rootKey) {
-		return rootKey + "/" + Utils.escape(key.toString());
-	}
-
-	public static String trimKey(String fullKey, String rootKey) {
-		return Utils.unescape(fullKey).substring(rootKey.length() + 1);
-	}
 }

@@ -24,11 +24,11 @@ import java.net.URISyntaxException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-import java.util.Objects;
 import java.util.Optional;
 import java.util.TreeSet;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.osgi.framework.BundleContext;
 import org.osgi.framework.BundleException;
@@ -41,9 +41,8 @@ import org.slf4j.LoggerFactory;
 import com.fasterxml.jackson.databind.type.TypeFactory;
 
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
-import net.bbmsoft.worterbuch.client.WorterbuchClientImpl;
+import net.bbmsoft.worterbuch.client.Worterbuch;
 import net.bbmsoft.worterbuch.client.api.WorterbuchException;
-import net.bbmsoft.worterbuch.client.collections.AsyncWorterbuchList;
 import net.bbmsoft.worterbuch.client.model.KeyValuePair;
 
 @Component
@@ -55,27 +54,6 @@ public class ClientDemo {
 	private volatile Thread thread;
 
 	static record HelloWorld(String greeting, String gretee) {
-
-		@Override
-		public int hashCode() {
-			return Objects.hash(this.greeting, this.gretee);
-		}
-
-		@Override
-		public boolean equals(final Object obj) {
-			if (this == obj) {
-				return true;
-			}
-			if (obj == null) {
-				return false;
-			}
-			if (this.getClass() != obj.getClass()) {
-				return false;
-			}
-			final var other = (HelloWorld) obj;
-			return Objects.equals(this.greeting, other.greeting) && Objects.equals(this.gretee, other.gretee);
-		}
-
 	}
 
 	@Activate
@@ -88,8 +66,7 @@ public class ClientDemo {
 		this.thread = new Thread(() -> {
 			try {
 				this.run();
-			} catch (ExecutionException | InterruptedException | URISyntaxException | TimeoutException
-					| WorterbuchException e) {
+			} catch (final Exception e) {
 				this.error(e);
 			}
 		});
@@ -102,27 +79,25 @@ public class ClientDemo {
 		this.running = false;
 	}
 
-	private void run()
-			throws ExecutionException, URISyntaxException, TimeoutException, InterruptedException, WorterbuchException {
+	private void run() throws Exception {
 
 		final var uris = Arrays.asList(new URI("ws://localhost:8081/ws"), new URI("ws://localhost:8080"),
 				new URI("ws://localhost:8080/ws"));
 
 		final var authToken = System.getenv("WORTERBUCH_AUTH_TOKEN");
 
-		final var wb = authToken != null ? WorterbuchClientImpl.connect(uris, authToken, this::exit, this::error)
-				: WorterbuchClientImpl.connect(uris, this::exit, this::error);
+		final var wb = authToken != null ? Worterbuch.connect(uris, authToken, null, this::exit, this::error)
+				: Worterbuch.connect(uris, this::exit, this::error);
 
-		final var locked = wb.lock("testapp/state/leader").get();
+		final var locked = wb.lock("testapp/state/leader").result().get().isOk();
 		System.out.println("Key locked: " + locked);
 
 		wb.set("testapp/state/running", true);
 
-		wb.pLs("$SYS/?/?").thenAccept(System.err::println);
+		wb.pLs("$SYS/?/?").result().thenAccept(System.err::println);
+		System.err.println(wb.pLs("$SYS/?/?").result().get().get());
 
 		wb.subscribeList("testapp/state/collections/asyncList", true, true, HelloWorld.class, this::printOptional);
-
-		final var list = new AsyncWorterbuchList<>(wb, "testapp", "collections", "asyncList", HelloWorld.class);
 
 		wb.setLastWill(Collections.emptyList());
 		wb.setGraveGoods(Collections.emptyList());
@@ -138,36 +113,43 @@ public class ClientDemo {
 			}).start();
 		}
 
-		var counter = list.size() - 1;
-		var inverted = counter >= 2;
+		final var inverted = new AtomicBoolean();
+
 		while (this.running) {
 
-			if (counter < 0) {
-				counter = 0;
-				inverted = false;
-			}
+			wb.updateList("testapp/state/collections/asyncList", list -> {
 
-			if (inverted) {
-				list.remove(counter);
-			} else {
-				switch (list.size()) {
-				case 0 -> list.add(new HelloWorld("Hello", "World"));
-				case 1 -> list.add(new HelloWorld("Hello", "There"));
-				default -> list.add(new HelloWorld("General", "Kenobi"));
+				var counter = list.size() - 1;
+
+				if (counter < 0) {
+					counter = 0;
+					inverted.set(false);
 				}
-			}
 
-			counter = list.size() - 1;
+				if (inverted.get()) {
+					list.remove(counter);
+				} else {
+					switch (list.size()) {
+					case 0 -> list.add(new HelloWorld("Hello", "World"));
+					case 1 -> list.add(new HelloWorld("Hello", "There"));
+					default -> list.add(new HelloWorld("General", "Kenobi"));
+					}
+				}
 
-			if (counter >= 2) {
-				inverted = true;
-			}
+				counter = list.size() - 1;
+
+				if (counter >= 2) {
+					inverted.set(true);
+				}
+
+			}, HelloWorld.class);
 
 			try {
 				Thread.sleep(1000);
 			} catch (final InterruptedException e) {
 				break;
 			}
+
 		}
 
 		wb.close();

@@ -20,13 +20,14 @@
 package net.bbmsoft.worterbuch.client.pending;
 
 import java.lang.reflect.Type;
-import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import net.bbmsoft.worterbuch.client.api.util.Tuple;
+import net.bbmsoft.worterbuch.client.error.Result;
+import net.bbmsoft.worterbuch.client.model.ClientMessage;
 
 @SuppressFBWarnings({ "EI_EXPOSE_REP", "EI_EXPOSE_REP2" })
-public record PendingCGet<T>(CompletableFuture<Tuple<Optional<T>, Long>> callback, Type type) {
+public record PendingCGet<T>(ClientMessage request, CompletableFuture<Result<Tuple<T, Long>>> callback, Type type) {
 
 }

@@ -40,7 +40,7 @@ import java.util.function.Consumer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import net.bbmsoft.worterbuch.client.ClientSocket;
+import net.bbmsoft.worterbuch.client.api.WorterbuchException;
 
 public final class TcpClientSocket implements ClientSocket {
 
@@ -49,7 +49,7 @@ public final class TcpClientSocket implements ClientSocket {
 	private final URI uri;
 	private final AsynchronousSocketChannel socket;
 	private final BiConsumer<Integer, String> onDisconnect;
-	private final Consumer<? super Throwable> onError;
+	private final Consumer<WorterbuchException> onError;
 	private final LinkedBlockingQueue<String> outs;
 	private final AtomicBoolean disconnected;
 
@@ -57,7 +57,7 @@ public final class TcpClientSocket implements ClientSocket {
 	private Thread transmitThread;
 
 	public TcpClientSocket(final URI uri, final BiConsumer<Integer, String> onDisconnect,
-			final Consumer<? super Throwable> onError, final int bufferSize) throws IOException {
+			final Consumer<WorterbuchException> onError, final int bufferSize) throws IOException {
 
 		this.uri = uri;
 		this.socket = AsynchronousSocketChannel.open();
@@ -130,7 +130,7 @@ public final class TcpClientSocket implements ClientSocket {
 		try {
 			this.socket.close();
 		} catch (final IOException e) {
-			this.onError.accept(e);
+			this.onError.accept(new WorterbuchException("error closing socket", e));
 		}
 	}
 
@@ -269,7 +269,7 @@ public final class TcpClientSocket implements ClientSocket {
 		final var alreadyDisconnected = this.disconnected.getAndSet(true);
 		errorCode.item = 2;
 		message.item = "socket read error";
-		TcpClientSocket.this.onError.accept(e);
+		TcpClientSocket.this.onError.accept(new WorterbuchException("error reading from socket", e));
 		Thread.currentThread().interrupt();
 		return alreadyDisconnected;
 	}
@@ -278,7 +278,7 @@ public final class TcpClientSocket implements ClientSocket {
 		final var alreadyDisconnected = this.disconnected.getAndSet(true);
 		errorCode.item = 3;
 		message.item = "socket write error";
-		TcpClientSocket.this.onError.accept(e);
+		TcpClientSocket.this.onError.accept(new WorterbuchException("error writing to socket", e));
 		Thread.currentThread().interrupt();
 		return alreadyDisconnected;
 	}
@@ -289,7 +289,7 @@ public final class TcpClientSocket implements ClientSocket {
 			try {
 				this.socket.close();
 			} catch (final IOException e) {
-				this.onError.accept(e);
+				this.onError.accept(new WorterbuchException("socket closed", e));
 			}
 		}
 	}

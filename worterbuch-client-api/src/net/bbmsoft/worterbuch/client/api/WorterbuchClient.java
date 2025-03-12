@@ -20,9 +20,9 @@
 package net.bbmsoft.worterbuch.client.api;
 
 import java.lang.reflect.Type;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -33,133 +33,170 @@ import org.osgi.annotation.versioning.ProviderType;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import net.bbmsoft.worterbuch.client.api.util.Tuple;
+import net.bbmsoft.worterbuch.client.api.util.type.TypeUtil;
+import net.bbmsoft.worterbuch.client.error.Future;
 import net.bbmsoft.worterbuch.client.model.KeyValuePair;
 
 @ProviderType
 public interface WorterbuchClient extends AutoCloseable {
 
-	<T> void set(String key, T value);
+	<T> Future<Void> set(String key, T value);
 
-	<T> void publish(String key, T value);
+	<T> Future<Void> publish(String key, T value);
 
-	<T> CompletableFuture<Long> initPubStream(String key);
+	<T> Future<Void> initPubStream(String key);
 
-	<T> void streamPub(long transactionId, T value);
+	<T> Future<Void> streamPub(long transactionId, T value);
 
-	<T> CompletableFuture<Optional<T>> get(String key, Class<T> type);
+	default <T> Future<T> get(final String key, final Class<T> type) {
+		return this.get(key, (Type) type);
+	}
 
-	<T> CompletableFuture<Optional<T>> get(String key, Type type);
+	<T> Future<T> get(String key, Type type);
 
-	<T> CompletableFuture<Optional<List<T>>> getList(String key, Class<T> elementType);
+	default <T> Future<List<T>> getList(final String key, final Class<T> elementType) {
+		return this.get(key, TypeUtil.listType(elementType));
+	}
 
-	<T> CompletableFuture<List<TypedKeyValuePair<T>>> pGet(String pattern, Class<T> type);
+	default <T> Future<List<TypedKeyValuePair<T>>> pGet(final String pattern, final Class<T> type) {
+		return this.pGet(pattern, (Type) type);
+	}
 
-	<T> CompletableFuture<List<TypedKeyValuePair<T>>> pGet(String pattern, Type type);
+	<T> Future<List<TypedKeyValuePair<T>>> pGet(String pattern, Type type);
 
-	<T> CompletableFuture<Optional<T>> delete(String key, Class<T> type);
+	default <T> Future<T> delete(final String key, final Class<T> type) {
+		return this.delete(key, (Type) type);
+	}
 
-	<T> CompletableFuture<Optional<T>> delete(String key, Type type);
+	<T> Future<T> delete(String key, Type type);
 
-	void delete(String key);
+	Future<Void> delete(String key);
 
-	<T> CompletableFuture<List<TypedKeyValuePair<T>>> pDelete(String pattern, Class<T> type);
+	default <T> Future<List<TypedKeyValuePair<T>>> pDelete(final String pattern, final Class<T> type) {
+		return this.pDelete(pattern, (Type) type);
+	}
 
-	void pDelete(String pattern);
+	<T> Future<List<TypedKeyValuePair<T>>> pDelete(String pattern, Type type);
 
-	CompletableFuture<List<String>> ls(String parent);
+	Future<Void> pDelete(String pattern);
 
-	CompletableFuture<List<String>> pLs(String parentPattern);
+	Future<List<String>> ls(String parent);
 
-	<T> long subscribe(String key, boolean unique, boolean liveOnly, Class<T> type, Consumer<Optional<T>> callback);
+	Future<List<String>> pLs(String parentPattern);
 
-	<T> long subscribe(String key, boolean unique, boolean liveOnly, Type type, Consumer<Optional<T>> callback);
+	default <T> Future<Void> subscribe(final String key, final boolean unique, final boolean liveOnly,
+			final Class<T> type, final Consumer<Optional<T>> callback) {
+		return this.subscribe(key, unique, liveOnly, (Type) type, callback);
+	}
 
-	default <T> long subscribe(final String key, final boolean unique, final boolean liveOnly, final Class<T> type,
-			final Consumer<Optional<T>> callback, final Consumer<? super Throwable> onError, final Executor executor) {
+	<T> Future<Void> subscribe(String key, boolean unique, boolean liveOnly, Type type, Consumer<Optional<T>> callback);
+
+	default <T> Future<Void> subscribe(final String key, final boolean unique, final boolean liveOnly,
+			final Class<T> type, final Consumer<Optional<T>> callback, final Consumer<? super Throwable> onError,
+			final Executor executor) {
 		return this.subscribe(key, unique, liveOnly, type, v -> executor.execute(() -> callback.accept(v)));
 	}
 
-	default <T> long subscribe(final String key, final boolean unique, final boolean liveOnly, final Type type,
+	default <T> Future<Void> subscribe(final String key, final boolean unique, final boolean liveOnly, final Type type,
 			final Consumer<Optional<T>> callback, final Consumer<? super Throwable> onError, final Executor executor) {
 		return this.<T>subscribe(key, unique, liveOnly, type, v -> executor.execute(() -> callback.accept(v)));
 	}
 
-	<T> long subscribeList(String key, boolean unique, boolean liveOnly, Class<T> elementType,
-			Consumer<Optional<List<T>>> callback);
+	default <T> Future<Void> subscribeList(final String key, final boolean unique, final boolean liveOnly,
+			final Class<T> elementType, final Consumer<Optional<List<T>>> callback) {
+		return this.subscribe(key, unique, liveOnly, TypeUtil.listType(elementType), callback);
+	}
 
-	default <T> long subscribeList(final String key, final boolean unique, final boolean liveOnly,
+	default <T> Future<Void> subscribeList(final String key, final boolean unique, final boolean liveOnly,
 			final Class<T> elementType, final Consumer<Optional<List<T>>> callback,
 			final Consumer<? super Throwable> onError, final Executor executor) {
 		return this.subscribeList(key, unique, liveOnly, elementType, v -> executor.execute(() -> callback.accept(v)));
 	}
 
-	<T> long pSubscribe(String pattern, boolean unique, boolean liveOnly, Optional<Long> aggregateEvents, Class<T> type,
-			Consumer<TypedPStateEvent<T>> callback);
+	default <T> Future<Void> pSubscribe(final String pattern, final boolean unique, final boolean liveOnly,
+			final Optional<Long> aggregateEvents, final Class<T> type, final Consumer<TypedPStateEvent<T>> callback) {
+		return this.pSubscribe(pattern, unique, liveOnly, aggregateEvents, (Type) type, callback);
+	}
 
-	default <T> long pSubscribe(final String pattern, final boolean unique, final boolean liveOnly,
+	default <T> Future<Void> pSubscribe(final String pattern, final boolean unique, final boolean liveOnly,
 			final Optional<Long> aggregateEvents, final Class<T> type, final Consumer<TypedPStateEvent<T>> callback,
 			final Executor executor) {
 		return this.pSubscribe(pattern, unique, liveOnly, aggregateEvents, type,
 				v -> executor.execute(() -> callback.accept(v)));
 	}
 
-	<T> long pSubscribe(String pattern, boolean unique, boolean liveOnly, Optional<Long> aggregateEvents, Type type,
-			Consumer<TypedPStateEvent<T>> callback);
+	<T> Future<Void> pSubscribe(String pattern, boolean unique, boolean liveOnly, Optional<Long> aggregateEvents,
+			Type type, Consumer<TypedPStateEvent<T>> callback);
 
-	default <T> long pSubscribe(final String pattern, final boolean unique, final boolean liveOnly,
+	default <T> Future<Void> pSubscribe(final String pattern, final boolean unique, final boolean liveOnly,
 			final Optional<Long> aggregateEvents, final Type type, final Consumer<TypedPStateEvent<T>> callback,
 			final Executor executor) {
 		return this.<T>pSubscribe(pattern, unique, liveOnly, aggregateEvents, type,
 				v -> executor.execute(() -> callback.accept(v)));
 	}
 
-	void unsubscribe(long transactionId);
+	Future<Void> unsubscribe(long transactionId);
 
-	long subscribeLs(String parent, Consumer<List<String>> callback);
+	Future<Void> subscribeLs(String parent, Consumer<List<String>> callback);
 
-	default long subscribeLs(final String parent, final Consumer<List<String>> callback,
+	default Future<Void> subscribeLs(final String parent, final Consumer<List<String>> callback,
 			final Consumer<? super Throwable> onError, final Executor executor) {
 		return this.subscribeLs(parent, v -> executor.execute(() -> callback.accept(v)));
 	}
 
-	void unsubscribeLs(long transactionId);
+	Future<Void> unsubscribeLs(long transactionId);
 
-	ObjectMapper getObjectMapper();
+	<T> Future<Void> cSet(String key, T value, long version);
 
-	String getClientId();
+	default <T> Future<Tuple<T, Long>> cGet(final String key, final Class<T> type) {
+		return this.cGet(key, (Type) type);
+	}
 
-	CompletableFuture<Optional<List<String>>> getGraveGoods();
+	<T> Future<Tuple<T, Long>> cGet(String key, Type type);
 
-	CompletableFuture<Optional<List<KeyValuePair>>> getLastWill();
+	default <T, V> boolean update(final String key, final Function<Optional<T>, V> transform, final Class<T> type) {
+		return this.update(key, transform, (Type) type);
+	}
 
-	void setGraveGoods(List<String> graveGoods) throws WorterbuchException;
+	<T, V> boolean update(String key, Function<Optional<T>, V> transform, Type type);
 
-	void setLastWill(List<KeyValuePair> lastWill) throws WorterbuchException;
+	default <T> boolean update(final String key, final Supplier<T> seed, final Consumer<T> update,
+			final Class<T> type) {
+		return this.update(key, seed, update, (Type) type);
+	}
+
+	default <T> boolean update(final String key, final Supplier<T> seed, final Consumer<T> update, final Type type) {
+		return this.<T, T>update(key, mi -> {
+			final var i = mi.orElseGet(seed);
+			update.accept(i);
+			return i;
+		}, type);
+	}
+
+	default <T> boolean updateList(final String key, final Consumer<List<T>> update, final Class<T> elementType) {
+		return this.update(key, ArrayList::new, update, TypeUtil.listType(elementType));
+	}
+
+	Future<Void> lock(String key);
+
+	Future<Void> releaseLock(String key);
+
+	Future<List<String>> getGraveGoods();
+
+	Future<List<KeyValuePair>> getLastWill();
+
+	Future<Void> setGraveGoods(List<String> graveGoods);
+
+	Future<Void> setLastWill(List<KeyValuePair> lastWill);
 
 	void updateGraveGoods(Consumer<List<String>> update);
 
 	void updateLastWill(Consumer<List<KeyValuePair>> update);
 
-	void setClientName(String name);
+	Future<Void> setClientName(String name);
 
-	<T> CompletableFuture<Void> cSet(String key, T value, long version);
+	ObjectMapper getObjectMapper();
 
-	<T> CompletableFuture<Tuple<Optional<T>, Long>> cGet(String key, Class<T> type);
-
-	<T> CompletableFuture<Tuple<Optional<T>, Long>> cGet(String key, Type type);
-
-	<T, V> void update(String key, Function<Optional<T>, V> transform, Class<T> type);
-
-	<T, V> void update(String key, Function<Optional<T>, V> transform, Type type);
-
-	<T> void update(String key, Supplier<T> seed, Consumer<T> update, Class<T> type);
-
-	<T> void update(String key, Supplier<T> seed, Consumer<T> update, Type type);
-
-	<T> void updateList(String key, Consumer<List<T>> update, Class<T> type);
-
-	CompletableFuture<Boolean> lock(String key);
-
-	CompletableFuture<Boolean> releaseLock(String key);
+	String getClientId();
 
 }

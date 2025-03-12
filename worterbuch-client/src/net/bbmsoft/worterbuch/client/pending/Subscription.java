@@ -24,8 +24,9 @@ import java.util.Optional;
 import java.util.function.Consumer;
 
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
+import net.bbmsoft.worterbuch.client.model.ClientMessage;
 
 @SuppressFBWarnings({ "EI_EXPOSE_REP", "EI_EXPOSE_REP2" })
-public record Subscription<T>(Consumer<Optional<T>> callback, Type type) {
+public record Subscription<T>(ClientMessage request, Consumer<Optional<T>> callback, Type type) {
 
 }

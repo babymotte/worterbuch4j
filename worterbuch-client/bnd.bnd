@@ -1,6 +1,6 @@
 Bundle-Name: Wörterbuch4j
 
-Bundle-Version: 9.0.0
+Bundle-Version: 10.0.0
 
 Bundle-Description: A Wörterbuch client library for the JVM
 
@@ -17,7 +17,10 @@ Bundle-License: AGPL-3.0-or-later; \
 
 Export-Package: \
 	net.bbmsoft.worterbuch.client,\
-	net.bbmsoft.worterbuch.client.collections
+	net.bbmsoft.worterbuch.client.api,\
+	net.bbmsoft.worterbuch.client.api.util,\
+	net.bbmsoft.worterbuch.client.api.util.type,\
+	net.bbmsoft.worterbuch.client.error
 
 -buildpath: \
 	slf4j.api,\
@@ -31,12 +34,31 @@ Export-Package: \
 	com.fasterxml.jackson.core.jackson-databind;version='2.17',\
 	com.fasterxml.jackson.core.jackson-annotations;version='2.17',\
 	com.google.guava,\
-	worterbuch-client-api;version=latest,\
+	worterbuch-client-api;version=snapshot,\
 	spotbugs-annotations
+
+-testpath: \
+	${junit},\
+	${mockito},\
+	${mockito-deps},\
+	osgi.annotation;version='7.0.0',\
+	osgi.core;version='7.0.0',\
+	osgi.cmpn;version='7.0.0',\
+	worterbuch-client-api;version=snapshot,\
+	org.testcontainers:testcontainers,\
+	com.github.docker-java:docker-java-api,\
+	com.github.docker-java:docker-java-transport,\
+	com.github.docker-java:docker-java-transport-zerodep,\
+	org.rnorth.duct-tape:duct-tape,\
+	net.java.dev.jna:jna,\
+	net.java.dev.jna:platform,\
+	ch.qos.logback.classic,\
+	ch.qos.logback.core
 
 -privatepackage: \
 	net.bbmsoft.worterbuch.client.pending,\
-	net.bbmsoft.worterbuch.client.impl
+	net.bbmsoft.worterbuch.client.impl,\
+	net.bbmsoft.worterbuch.client.collections.impl
 	
 -pom: groupid=net.bbmsoft, \
  	where=META-INF/maven/pom.xml, \
