@@ -38,13 +38,13 @@
 	org.eclipse.jetty.websocket.client;version='[9.4.12,9.4.13)',\
 	org.eclipse.jetty.websocket.common;version='[9.4.12,9.4.13)',\
 	org.eclipse.jetty.xml;version='[9.4.12,9.4.13)',\
-	slf4j.api;version='[1.7.25,1.7.26)',\
 	worterbuch-client-demo;version=snapshot,\
 	org.osgi.service.metatype;version='[1.4.0,1.4.1)',\
 	worterbuch-client;version=snapshot,\
 	com.fasterxml.jackson.core.jackson-annotations;version='[2.17.2,2.17.3)',\
 	com.fasterxml.jackson.core.jackson-core;version='[2.17.2,2.17.3)',\
 	com.fasterxml.jackson.core.jackson-databind;version='[2.17.2,2.17.3)',\
-	worterbuch-client-api;version=snapshot
+	slf4j.api;version='[1.7.36,1.7.37)',\
+	worterbuch-client-api;version='[1.0.0,1.0.1)'
 	
 	

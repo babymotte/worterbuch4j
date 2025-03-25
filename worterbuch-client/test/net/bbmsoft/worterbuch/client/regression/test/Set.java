@@ -36,7 +36,7 @@ public class Set {
 
 		Set.WB.client.set("set/hello/world", original).result().get();
 		final var value = Set.WB.client.get("set/hello/world", Integer.class).result().get().get();
-		Assert.assertEquals(value.intValue(), original);
+		Assert.assertEquals(original, value.intValue());
 	}
 
 	@Test
@@ -65,7 +65,7 @@ public class Set {
 			});
 		});
 
-		Assert.assertEquals(queue.poll(1, TimeUnit.SECONDS).intValue(), original);
+		Assert.assertEquals(original, queue.poll(1, TimeUnit.SECONDS).intValue());
 
 	}
 
@@ -85,7 +85,7 @@ public class Set {
 			});
 		});
 
-		Assert.assertEquals(queue.poll(1, TimeUnit.SECONDS), original);
+		Assert.assertEquals(original, queue.poll(1, TimeUnit.SECONDS));
 	}
 
 }

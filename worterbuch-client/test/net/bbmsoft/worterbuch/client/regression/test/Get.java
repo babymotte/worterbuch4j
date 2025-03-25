@@ -35,7 +35,7 @@ public class Get {
 	public void syncGetWorks() throws InterruptedException, ExecutionException {
 
 		final var value = Get.WB.client.get("$SYS/license", String.class).result().get().get();
-		Assert.assertEquals(value, "AGPL-3.0-or-later");
+		Assert.assertEquals("AGPL-3.0-or-later", value);
 	}
 
 	@Test
@@ -51,14 +51,14 @@ public class Get {
 			}
 		});
 
-		Assert.assertEquals(queue.poll(1, TimeUnit.SECONDS), "AGPL-3.0-or-later");
+		Assert.assertEquals("AGPL-3.0-or-later", queue.poll(1, TimeUnit.SECONDS));
 	}
 
 	@Test
 	public void syncGetOfNonexistingKeyReturnsNoSuchElement() throws InterruptedException, ExecutionException {
 
-		Assert.assertEquals(Get.WB.client.get("key/not/set", String.class).result().get().err().getErrorCode(),
-				ErrorCode.NoSuchValue);
+		Assert.assertEquals(ErrorCode.NoSuchValue,
+				Get.WB.client.get("key/not/set", String.class).result().get().err().getErrorCode());
 	}
 
 	@Test
@@ -74,7 +74,7 @@ public class Get {
 			}
 		});
 
-		Assert.assertEquals(queue.poll(1, TimeUnit.SECONDS).getErrorCode(), ErrorCode.NoSuchValue);
+		Assert.assertEquals(ErrorCode.NoSuchValue, queue.poll(1, TimeUnit.SECONDS).getErrorCode());
 	}
 
 }
