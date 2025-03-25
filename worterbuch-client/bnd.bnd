@@ -20,7 +20,8 @@ Export-Package: \
 	net.bbmsoft.worterbuch.client.api,\
 	net.bbmsoft.worterbuch.client.api.util,\
 	net.bbmsoft.worterbuch.client.api.util.type,\
-	net.bbmsoft.worterbuch.client.error
+	net.bbmsoft.worterbuch.client.error,\
+	net.bbmsoft.worterbuch.client.model
 
 -buildpath: \
 	slf4j.api,\
