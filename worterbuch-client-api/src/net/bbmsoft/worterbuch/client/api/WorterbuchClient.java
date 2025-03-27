@@ -92,13 +92,12 @@ public interface WorterbuchClient extends AutoCloseable {
 	<T> Future<Void> subscribe(String key, boolean unique, boolean liveOnly, Type type, Consumer<Optional<T>> callback);
 
 	default <T> Future<Void> subscribe(final String key, final boolean unique, final boolean liveOnly,
-			final Class<T> type, final Consumer<Optional<T>> callback, final Consumer<? super Throwable> onError,
-			final Executor executor) {
+			final Class<T> type, final Consumer<Optional<T>> callback, final Executor executor) {
 		return this.subscribe(key, unique, liveOnly, type, v -> executor.execute(() -> callback.accept(v)));
 	}
 
 	default <T> Future<Void> subscribe(final String key, final boolean unique, final boolean liveOnly, final Type type,
-			final Consumer<Optional<T>> callback, final Consumer<? super Throwable> onError, final Executor executor) {
+			final Consumer<Optional<T>> callback, final Executor executor) {
 		return this.<T>subscribe(key, unique, liveOnly, type, v -> executor.execute(() -> callback.accept(v)));
 	}
 
@@ -108,8 +107,7 @@ public interface WorterbuchClient extends AutoCloseable {
 	}
 
 	default <T> Future<Void> subscribeList(final String key, final boolean unique, final boolean liveOnly,
-			final Class<T> elementType, final Consumer<Optional<List<T>>> callback,
-			final Consumer<? super Throwable> onError, final Executor executor) {
+			final Class<T> elementType, final Consumer<Optional<List<T>>> callback, final Executor executor) {
 		return this.subscribeList(key, unique, liveOnly, elementType, v -> executor.execute(() -> callback.accept(v)));
 	}
 
@@ -140,7 +138,7 @@ public interface WorterbuchClient extends AutoCloseable {
 	Future<Void> subscribeLs(String parent, Consumer<List<String>> callback);
 
 	default Future<Void> subscribeLs(final String parent, final Consumer<List<String>> callback,
-			final Consumer<? super Throwable> onError, final Executor executor) {
+			final Executor executor) {
 		return this.subscribeLs(parent, v -> executor.execute(() -> callback.accept(v)));
 	}
 

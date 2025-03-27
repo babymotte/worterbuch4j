@@ -27,6 +27,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.TreeSet;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Executors;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -81,6 +82,8 @@ public class ClientDemo {
 	}
 
 	private void run() throws Exception {
+		
+		var executor = Executors.newSingleThreadExecutor();
 
 		final var uris = Arrays.asList(new URI("ws://localhost:8081/ws"), new URI("ws://localhost:8080"),
 				new URI("ws://localhost:8080/ws"));
@@ -102,7 +105,7 @@ public class ClientDemo {
 		wb.pLs("$SYS/?/?").result().thenAccept(System.err::println);
 		System.err.println(wb.pLs("$SYS/?/?").result().get().get());
 
-		wb.subscribeList("testapp/state/collections/asyncList", true, true, HelloWorld.class, this::printOptional);
+		wb.subscribeList("testapp/state/collections/asyncList", true, true, HelloWorld.class, this::printOptional, executor);
 
 		wb.setLastWill(Collections.emptyList());
 		wb.setGraveGoods(Collections.emptyList());
