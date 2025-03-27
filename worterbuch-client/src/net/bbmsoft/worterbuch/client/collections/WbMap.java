@@ -12,6 +12,7 @@ import java.util.function.Consumer;
 import com.fasterxml.jackson.databind.type.MapLikeType;
 import com.fasterxml.jackson.databind.type.TypeFactory;
 
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import net.bbmsoft.worterbuch.client.api.WorterbuchClient;
 
 public class WbMap<T> implements Map<String, T> {
@@ -20,6 +21,7 @@ public class WbMap<T> implements Map<String, T> {
 	private final String mapKey;
 	private final MapLikeType type;
 
+	@SuppressFBWarnings("EI_EXPOSE_REP2")
 	public WbMap(final WorterbuchClient wbClient, final String application, final String namespace,
 			final String mapName, final Class<T> valueType) {
 		this.wbClient = wbClient;
