@@ -93,6 +93,10 @@ public class ClientDemo {
 		final var locked = wb.lock("testapp/state/leader").result().get().isOk();
 		System.out.println("Key locked: " + locked);
 
+		System.out.println("Acquiring lock on hello/world ...");
+		wb.acquireLock("hello/world").result().get();
+		System.out.println("Lock on hello/world acquired.");
+
 		wb.set("testapp/state/running", true);
 
 		wb.pLs("$SYS/?/?").result().thenAccept(System.err::println);

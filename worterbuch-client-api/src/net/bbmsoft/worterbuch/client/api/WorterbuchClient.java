@@ -179,6 +179,8 @@ public interface WorterbuchClient extends AutoCloseable {
 
 	Future<Void> lock(String key);
 
+	Future<Void> acquireLock(String key);
+
 	Future<Void> releaseLock(String key);
 
 	Future<List<String>> getGraveGoods();

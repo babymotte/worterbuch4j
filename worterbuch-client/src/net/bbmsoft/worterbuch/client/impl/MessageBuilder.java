@@ -2,6 +2,7 @@ package net.bbmsoft.worterbuch.client.impl;
 
 import java.util.Optional;
 
+import net.bbmsoft.worterbuch.client.model.AcquireLock;
 import net.bbmsoft.worterbuch.client.model.AuthorizationRequest;
 import net.bbmsoft.worterbuch.client.model.CGet;
 import net.bbmsoft.worterbuch.client.model.CSet;
@@ -134,6 +135,12 @@ public class MessageBuilder {
 	public static ClientMessage lockMessage(final long tid, final String key) {
 		final var msg = new ClientMessage();
 		msg.setLock(new Lock(tid, key));
+		return msg;
+	}
+
+	public static ClientMessage acquireLockMessage(final long tid, final String key) {
+		final var msg = new ClientMessage();
+		msg.setAcquireLock(new AcquireLock(tid, key));
 		return msg;
 	}
 

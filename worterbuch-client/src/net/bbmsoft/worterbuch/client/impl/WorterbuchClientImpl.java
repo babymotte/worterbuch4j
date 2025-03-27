@@ -350,6 +350,17 @@ public class WorterbuchClientImpl implements WorterbuchClient {
 	}
 
 	@Override
+	public Future<Void> acquireLock(final String key) {
+		final var tid = this.acquireTid();
+		final var fut = new CompletableFuture<Result<Void>>();
+		final var msg = MessageBuilder.acquireLockMessage(tid, key);
+		final var json = this.messageSerde.serializeMessage(msg);
+		this.pendingAcks.put(tid, new PendingAck(msg, fut));
+		this.messageSender.sendMessage(json);
+		return new Future<>(fut, tid);
+	}
+
+	@Override
 	public Future<Void> releaseLock(final String key) {
 		final var tid = this.acquireTid();
 		final var fut = new CompletableFuture<Result<Void>>();
