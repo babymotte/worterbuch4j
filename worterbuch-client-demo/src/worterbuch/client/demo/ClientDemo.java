@@ -43,6 +43,7 @@ import com.fasterxml.jackson.databind.type.TypeFactory;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import net.bbmsoft.worterbuch.client.Worterbuch;
 import net.bbmsoft.worterbuch.client.api.WorterbuchException;
+import net.bbmsoft.worterbuch.client.collections.WbMap;
 import net.bbmsoft.worterbuch.client.model.KeyValuePair;
 
 @Component
@@ -105,6 +106,8 @@ public class ClientDemo {
 		wb.updateLastWill(will -> will.add(new KeyValuePair("testapp/state/running", false)));
 		wb.updateGraveGoods(gg -> gg.add("testapp/state/#"));
 
+		final var map = new WbMap<>(wb, "testapp", "mapTest", "map", HelloWorld.class);
+
 		final var type = TypeFactory.defaultInstance().constructCollectionType(TreeSet.class, Integer.class);
 		for (var i = 0; i < 10; i++) {
 			final var it = i;
@@ -128,11 +131,21 @@ public class ClientDemo {
 
 				if (inverted.get()) {
 					list.remove(counter);
+					map.remove(String.valueOf(counter));
 				} else {
 					switch (list.size()) {
-					case 0 -> list.add(new HelloWorld("Hello", "World"));
-					case 1 -> list.add(new HelloWorld("Hello", "There"));
-					default -> list.add(new HelloWorld("General", "Kenobi"));
+					case 0 -> {
+						list.add(new HelloWorld("Hello", "World"));
+						map.put("0", new HelloWorld("Hello", "World"));
+					}
+					case 1 -> {
+						list.add(new HelloWorld("Hello", "There"));
+						map.put("1", new HelloWorld("Hello", "World"));
+					}
+					default -> {
+						list.add(new HelloWorld("General", "Kenobi"));
+						map.put("2", new HelloWorld("Hello", "World"));
+					}
 					}
 				}
 
