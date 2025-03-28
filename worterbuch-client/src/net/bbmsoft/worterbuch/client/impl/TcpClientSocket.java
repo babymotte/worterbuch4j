@@ -108,6 +108,10 @@ public final class TcpClientSocket implements ClientSocket {
 
 		final var res = error.poll(Config.CONNECT_TIMEOUT, TimeUnit.SECONDS);
 
+		if (res == null) {
+			throw new TimeoutException("connection attempt timed out");
+		}
+
 		if (res.isPresent()) {
 			throw res.get();
 		}
