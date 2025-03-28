@@ -11,26 +11,24 @@ import com.fasterxml.jackson.core.type.TypeReference;
 
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import net.bbmsoft.worterbuch.client.api.WorterbuchClient;
-import net.bbmsoft.worterbuch.client.api.util.type.TypeUtil;
 
 public class WbMap<T> implements Map<String, T> {
 
 	private final WorterbuchClient wbClient;
 	private final String mapKey;
-	private final TypeReference<Map<String, T>> type;
 
 	@SuppressFBWarnings("EI_EXPOSE_REP2")
 	public WbMap(final WorterbuchClient wbClient, final String application, final String namespace,
-			final String mapName, final Class<T> valueType) {
+			final String mapName) {
 		this.wbClient = wbClient;
 		this.mapKey = application + "/state/" + namespace + "/" + mapName;
-		this.type = TypeUtil.map(valueType);
 	}
 
 	@Override
 	public int size() {
 		try {
-			return this.wbClient.get(this.mapKey, this.type).responseFuture().get().value().size();
+			return this.wbClient.get(this.mapKey, new TypeReference<Map<String, T>>() {
+			}).responseFuture().get().value().size();
 		} catch (InterruptedException | ExecutionException e) {
 			return 0;
 		}
@@ -39,7 +37,8 @@ public class WbMap<T> implements Map<String, T> {
 	@Override
 	public boolean isEmpty() {
 		try {
-			return this.wbClient.get(this.mapKey, this.type).responseFuture().get().value().isEmpty();
+			return this.wbClient.get(this.mapKey, new TypeReference<Map<String, T>>() {
+			}).responseFuture().get().value().isEmpty();
 		} catch (InterruptedException | ExecutionException e) {
 			return true;
 		}
@@ -48,7 +47,8 @@ public class WbMap<T> implements Map<String, T> {
 	@Override
 	public boolean containsKey(final Object key) {
 		try {
-			return this.wbClient.get(this.mapKey, this.type).responseFuture().get().value().containsKey(key);
+			return this.wbClient.get(this.mapKey, new TypeReference<Map<String, T>>() {
+			}).responseFuture().get().value().containsKey(key);
 		} catch (InterruptedException | ExecutionException e) {
 			return false;
 		}
@@ -57,7 +57,8 @@ public class WbMap<T> implements Map<String, T> {
 	@Override
 	public boolean containsValue(final Object value) {
 		try {
-			return this.wbClient.get(this.mapKey, this.type).responseFuture().get().value().containsValue(value);
+			return this.wbClient.get(this.mapKey, new TypeReference<Map<String, T>>() {
+			}).responseFuture().get().value().containsValue(value);
 		} catch (InterruptedException | ExecutionException e) {
 			return false;
 		}
@@ -66,7 +67,8 @@ public class WbMap<T> implements Map<String, T> {
 	@Override
 	public T get(final Object key) {
 		try {
-			return this.wbClient.get(this.mapKey, this.type).responseFuture().get().value().get(key);
+			return this.wbClient.get(this.mapKey, new TypeReference<Map<String, T>>() {
+			}).responseFuture().get().value().get(key);
 		} catch (InterruptedException | ExecutionException e) {
 			return null;
 		}
@@ -77,7 +79,8 @@ public class WbMap<T> implements Map<String, T> {
 		final var prev = new AtomicReference<T>();
 		this.wbClient.update(this.mapKey, m -> {
 			prev.set(m.put(key, value));
-		}, this.type);
+		}, new TypeReference<Map<String, T>>() {
+		});
 		return prev.get();
 	}
 
@@ -86,7 +89,8 @@ public class WbMap<T> implements Map<String, T> {
 		final var item = new AtomicReference<T>();
 		this.wbClient.update(this.mapKey, m -> {
 			item.set(m.remove(key));
-		}, this.type);
+		}, new TypeReference<Map<String, T>>() {
+		});
 		return item.get();
 	}
 
@@ -94,20 +98,23 @@ public class WbMap<T> implements Map<String, T> {
 	public void putAll(final Map<? extends String, ? extends T> other) {
 		this.wbClient.update(this.mapKey, m -> {
 			m.putAll(other);
-		}, this.type);
+		}, new TypeReference<Map<String, T>>() {
+		});
 	}
 
 	@Override
 	public void clear() {
 		this.wbClient.update(this.mapKey, m -> {
 			m.clear();
-		}, this.type);
+		}, new TypeReference<Map<String, T>>() {
+		});
 	}
 
 	@Override
 	public Set<String> keySet() {
 		try {
-			return this.wbClient.get(this.mapKey, this.type).responseFuture().get().value().keySet();
+			return this.wbClient.get(this.mapKey, new TypeReference<Map<String, T>>() {
+			}).responseFuture().get().value().keySet();
 		} catch (InterruptedException | ExecutionException e) {
 			return Collections.emptySet();
 		}
@@ -116,7 +123,8 @@ public class WbMap<T> implements Map<String, T> {
 	@Override
 	public Collection<T> values() {
 		try {
-			return this.wbClient.get(this.mapKey, this.type).responseFuture().get().value().values();
+			return this.wbClient.get(this.mapKey, new TypeReference<Map<String, T>>() {
+			}).responseFuture().get().value().values();
 		} catch (InterruptedException | ExecutionException e) {
 			return Collections.emptyList();
 		}
@@ -125,7 +133,8 @@ public class WbMap<T> implements Map<String, T> {
 	@Override
 	public Set<Entry<String, T>> entrySet() {
 		try {
-			return this.wbClient.get(this.mapKey, this.type).responseFuture().get().value().entrySet();
+			return this.wbClient.get(this.mapKey, new TypeReference<Map<String, T>>() {
+			}).responseFuture().get().value().entrySet();
 		} catch (InterruptedException | ExecutionException e) {
 			return Collections.emptySet();
 		}

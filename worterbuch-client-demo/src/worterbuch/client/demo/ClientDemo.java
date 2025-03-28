@@ -40,10 +40,11 @@ import org.osgi.service.component.annotations.Deactivate;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.fasterxml.jackson.core.type.TypeReference;
+
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import net.bbmsoft.worterbuch.client.Worterbuch;
 import net.bbmsoft.worterbuch.client.api.WorterbuchClient;
-import net.bbmsoft.worterbuch.client.api.util.type.TypeUtil;
 import net.bbmsoft.worterbuch.client.collections.WbMap;
 import net.bbmsoft.worterbuch.client.error.WorterbuchException;
 import net.bbmsoft.worterbuch.client.model.KeyValuePair;
@@ -115,7 +116,8 @@ public class ClientDemo {
 		wb.pLs("$SYS/?/?").andThen(this::printOptional, this.testExecutor);
 		this.printResponse(wb.pLs("$SYS/?/?").await());
 
-		wb.subscribe("testapp/state/collections/asyncList", true, true, TypeUtil.list(HelloWorld.class), v -> {
+		wb.subscribe("testapp/state/collections/asyncList", true, true, new TypeReference<List<HelloWorld>>() {
+		}, v -> {
 			this.printOptional(v);
 		}, this.testExecutor);
 
@@ -129,14 +131,15 @@ public class ClientDemo {
 		wb.updateLastWill(will -> will.add(new KeyValuePair("testapp/state/running", false)));
 		wb.updateGraveGoods(gg -> gg.add("testapp/state/#"));
 
-		final var map = new WbMap<>(wb, "testapp", "mapTest", "map", HelloWorld.class);
+		final var map = new WbMap<HelloWorld>(wb, "testapp", "mapTest", "map");
 
 		for (var i = 0; i < 20; i++) {
 			final var it = i;
 			new Thread(() -> {
 				wb.update("testapp/state/cas-list", l -> {
 					l.add(it);
-				}, TypeUtil.treeSet(Integer.class));
+				}, new TypeReference<List<Integer>>() {
+				});
 			}).start();
 		}
 
@@ -197,7 +200,8 @@ public class ClientDemo {
 					inverted.set(true);
 				}
 
-			}, TypeUtil.list(HelloWorld.class));
+			}, new TypeReference<List<HelloWorld>>() {
+			});
 
 			this.testExecutor.schedule(() -> {
 				try {

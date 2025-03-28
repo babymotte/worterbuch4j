@@ -1,6 +1,6 @@
 Bundle-Name: Wörterbuch4j
 
-Bundle-Version: 13.1.3
+Bundle-Version: 14.0.0
 
 Bundle-Description: A Wörterbuch client library for the JVM
 
@@ -20,7 +20,6 @@ Export-Package: \
 	net.bbmsoft.worterbuch.client.response,\
 	net.bbmsoft.worterbuch.client.api,\
 	net.bbmsoft.worterbuch.client.api.util,\
-	net.bbmsoft.worterbuch.client.api.util.type,\
 	net.bbmsoft.worterbuch.client.error,\
 	net.bbmsoft.worterbuch.client.model,\
 	net.bbmsoft.worterbuch.client.collections
@@ -38,7 +37,8 @@ Export-Package: \
 	com.fasterxml.jackson.core.jackson-annotations;version='2.17',\
 	com.google.guava,\
 	worterbuch-client-api;version=snapshot,\
-	spotbugs-annotations
+	spotbugs-annotations,\
+	osgi.annotation
 
 -testpath: \
 	${junit},\
@@ -61,7 +61,8 @@ Export-Package: \
 -privatepackage: \
 	net.bbmsoft.worterbuch.client.pending,\
 	net.bbmsoft.worterbuch.client.impl,\
-	net.bbmsoft.worterbuch.client.collections.impl
+	net.bbmsoft.worterbuch.client.collections.impl,\
+	net.bbmsoft.worterbuch.client.impl.util.type
 	
 -pom: groupid=net.bbmsoft, \
  	where=META-INF/maven/pom.xml, \

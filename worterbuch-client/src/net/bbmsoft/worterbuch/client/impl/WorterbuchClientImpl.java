@@ -31,9 +31,9 @@ import net.bbmsoft.worterbuch.client.api.TypedKeyValuePair;
 import net.bbmsoft.worterbuch.client.api.TypedPStateEvent;
 import net.bbmsoft.worterbuch.client.api.WorterbuchClient;
 import net.bbmsoft.worterbuch.client.api.util.Tuple;
-import net.bbmsoft.worterbuch.client.api.util.type.TypeUtil;
 import net.bbmsoft.worterbuch.client.error.WorterbuchError;
 import net.bbmsoft.worterbuch.client.error.WorterbuchException;
+import net.bbmsoft.worterbuch.client.impl.util.type.TypeUtil;
 import net.bbmsoft.worterbuch.client.model.Err;
 import net.bbmsoft.worterbuch.client.model.KeyValuePair;
 import net.bbmsoft.worterbuch.client.model.Welcome;
@@ -493,12 +493,14 @@ public class WorterbuchClientImpl implements WorterbuchClient {
 
 	@Override
 	public Future<List<String>> getGraveGoods() {
-		return this.get("$SYS/clients/" + this.getClientId() + "/graveGoods", TypeUtil.list(String.class));
+		return this.get("$SYS/clients/" + this.getClientId() + "/graveGoods", new TypeReference<List<String>>() {
+		});
 	}
 
 	@Override
 	public Future<List<KeyValuePair>> getLastWill() {
-		return this.get("$SYS/clients/" + this.getClientId() + "/lastWill", TypeUtil.list(KeyValuePair.class));
+		return this.get("$SYS/clients/" + this.getClientId() + "/lastWill", new TypeReference<List<KeyValuePair>>() {
+		});
 	}
 
 	@Override
@@ -513,12 +515,15 @@ public class WorterbuchClientImpl implements WorterbuchClient {
 
 	@Override
 	public void updateGraveGoods(final Consumer<List<String>> update) {
-		this.update("$SYS/clients/" + this.getClientId() + "/graveGoods", update, TypeUtil.list(String.class));
+		this.update("$SYS/clients/" + this.getClientId() + "/graveGoods", update, new TypeReference<List<String>>() {
+		});
 	}
 
 	@Override
 	public void updateLastWill(final Consumer<List<KeyValuePair>> update) {
-		this.update("$SYS/clients/" + this.getClientId() + "/lastWill", update, TypeUtil.list(KeyValuePair.class));
+		this.update("$SYS/clients/" + this.getClientId() + "/lastWill", update,
+				new TypeReference<List<KeyValuePair>>() {
+				});
 	}
 
 	@Override
