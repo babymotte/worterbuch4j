@@ -102,6 +102,12 @@ public class ClientDemo {
 
 		wb.set("testapp/state/running", true);
 
+		wb.set("testapp/to/be/deleted", 123);
+		wb.delete("testapp/to/be/deleted");
+
+		wb.set("testapp/to/be/deleted", 123);
+		wb.pDelete("testapp/to/be/deleted");
+
 		wb.get("testapp/state/running", Boolean.class).andThen(v -> {
 			this.printOptional(v);
 		}, this.testExecutor);

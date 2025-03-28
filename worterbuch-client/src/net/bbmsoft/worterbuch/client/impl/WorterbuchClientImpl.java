@@ -907,14 +907,19 @@ public class WorterbuchClientImpl implements WorterbuchClient {
 			final TypeFactory typeFactory) {
 		if (pendingDelete != null) {
 			if (deletedContainer != null) {
-				final var kvpType = typeFactory.constructType(pendingDelete.type());
-				try {
-					final var value = this.objectMapper.<T>readValue(deletedContainer.toString(), kvpType);
-					pendingDelete.callback().complete(new Ok<>(value));
-				} catch (final JsonProcessingException e) {
-					WorterbuchClientImpl.log.error("Could not deserialize JSON '{}': {}", deletedContainer,
-							e.getMessage());
-					pendingDelete.callback().completeExceptionally(e);
+
+				if (pendingDelete.type() == null) {
+					pendingDelete.callback().complete(new Ok<>(null));
+				} else {
+					final var kvpType = typeFactory.constructType(pendingDelete.type());
+					try {
+						final var value = this.objectMapper.<T>readValue(deletedContainer.toString(), kvpType);
+						pendingDelete.callback().complete(new Ok<>(value));
+					} catch (final JsonProcessingException e) {
+						WorterbuchClientImpl.log.error("Could not deserialize JSON '{}': {}", deletedContainer,
+								e.getMessage());
+						pendingDelete.callback().completeExceptionally(e);
+					}
 				}
 			} else {
 				pendingDelete.callback()
@@ -969,17 +974,21 @@ public class WorterbuchClientImpl implements WorterbuchClient {
 			final TypeFactory typeFactory) {
 		if (pendingPDelete != null) {
 			if (deletedContainer != null) {
-				final var valueType = typeFactory.constructParametricType(TypedKeyValuePair.class,
-						typeFactory.constructType(pendingPDelete.type()));
-				final var kvpsType = typeFactory.constructParametricType(List.class, valueType);
-				try {
-					final List<TypedKeyValuePair<T>> kvps = this.objectMapper.readValue(deletedContainer.toString(),
-							kvpsType);
-					pendingPDelete.callback().complete(new Ok<>(kvps));
-				} catch (final JsonProcessingException e) {
-					WorterbuchClientImpl.log.error("Could not deserialize JSON '{}': {}", deletedContainer,
-							e.getMessage());
-					pendingPDelete.callback().completeExceptionally(e);
+				if (pendingPDelete.type() == null) {
+					pendingPDelete.callback().complete(new Ok<>(Collections.emptyList()));
+				} else {
+					final var valueType = typeFactory.constructParametricType(TypedKeyValuePair.class,
+							typeFactory.constructType(pendingPDelete.type()));
+					final var kvpsType = typeFactory.constructParametricType(List.class, valueType);
+					try {
+						final List<TypedKeyValuePair<T>> kvps = this.objectMapper.readValue(deletedContainer.toString(),
+								kvpsType);
+						pendingPDelete.callback().complete(new Ok<>(kvps));
+					} catch (final JsonProcessingException e) {
+						WorterbuchClientImpl.log.error("Could not deserialize JSON '{}': {}", deletedContainer,
+								e.getMessage());
+						pendingPDelete.callback().completeExceptionally(e);
+					}
 				}
 			} else {
 				pendingPDelete.callback()
