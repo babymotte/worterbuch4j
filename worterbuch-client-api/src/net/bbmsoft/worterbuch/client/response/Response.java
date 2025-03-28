@@ -2,6 +2,7 @@ package net.bbmsoft.worterbuch.client.response;
 
 import java.util.NoSuchElementException;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 
 import net.bbmsoft.worterbuch.client.model.Err;
 
@@ -59,6 +60,22 @@ public sealed interface Response<T> permits Ok, Error {
 			onError.accept(err.err());
 		} else {
 			throw new IllegalStateException("can only be Ok or Error");
+		}
+	}
+
+	default T or(final T fallback) {
+		if (this.isOk()) {
+			return this.value();
+		} else {
+			return fallback;
+		}
+	}
+
+	default T orElse(final Supplier<T> fallback) {
+		if (this.isOk()) {
+			return this.value();
+		} else {
+			return fallback.get();
 		}
 	}
 
