@@ -40,6 +40,7 @@ import net.bbmsoft.worterbuch.client.model.Welcome;
 import net.bbmsoft.worterbuch.client.pending.LsSubscription;
 import net.bbmsoft.worterbuch.client.pending.PSubscription;
 import net.bbmsoft.worterbuch.client.pending.PendingAck;
+import net.bbmsoft.worterbuch.client.pending.PendingAuth;
 import net.bbmsoft.worterbuch.client.pending.PendingCGet;
 import net.bbmsoft.worterbuch.client.pending.PendingDelete;
 import net.bbmsoft.worterbuch.client.pending.PendingGet;
@@ -64,6 +65,8 @@ public class WorterbuchClientImpl implements WorterbuchClient {
 	private final MessageSender messageSender;
 
 	private final AtomicReference<Consumer<Welcome>> onWelcome;
+
+	private final AtomicReference<PendingAuth> pendingAuth;
 
 	private final Map<Long, PendingAck> pendingAcks;
 
@@ -94,7 +97,10 @@ public class WorterbuchClientImpl implements WorterbuchClient {
 
 		this.onWelcome = new AtomicReference<>();
 
+		this.pendingAuth = new AtomicReference<>();
+
 		this.pendingAcks = new ConcurrentHashMap<>();
+
 		this.pendingGets = new ConcurrentHashMap<>();
 		this.pendingPGets = new ConcurrentHashMap<>();
 		this.pendingDeletes = new ConcurrentHashMap<>();
@@ -598,7 +604,7 @@ public class WorterbuchClientImpl implements WorterbuchClient {
 	}
 
 	private <T, V> boolean evalUpdate(final Response<Void> set, final String key, final Object newValue,
-			final Long newVersion) throws InterruptedException, TimeoutException, WorterbuchException {
+			final Long newVersion) throws InterruptedException, WorterbuchException {
 
 		if (set instanceof Ok) {
 
@@ -641,7 +647,7 @@ public class WorterbuchClientImpl implements WorterbuchClient {
 		final var fut = new CompletableFuture<Response<Void>>();
 		final var msg = MessageBuilder.authorizationMessage(authToken);
 		final var json = this.messageSerde.serializeMessage(msg);
-		this.pendingAcks.put(tid, new PendingAck(msg, fut));
+		this.pendingAuth.set(new PendingAuth(msg, fut));
 		this.messageSender.sendMessage(json);
 		return new Future<>(fut, tid);
 	}
@@ -656,6 +662,17 @@ public class WorterbuchClientImpl implements WorterbuchClient {
 
 		try {
 			parent = this.objectMapper.readTree(message);
+
+			final var authContainer = parent.get("authorized");
+			if (authContainer != null) {
+
+				final var pending = this.pendingAuth.getAndSet(null);
+				if (pending != null) {
+					pending.callback().complete(new Ok<>(null));
+				}
+
+				return;
+			}
 
 			final var ackContainer = parent.get("ack");
 			if (ackContainer != null) {
