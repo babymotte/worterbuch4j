@@ -10,7 +10,7 @@ import org.testcontainers.containers.GenericContainer;
 
 import net.bbmsoft.worterbuch.client.Worterbuch;
 import net.bbmsoft.worterbuch.client.api.WorterbuchClient;
-import net.bbmsoft.worterbuch.client.api.WorterbuchException;
+import net.bbmsoft.worterbuch.client.error.WorterbuchException;
 
 public class Util {
 

@@ -1,6 +1,6 @@
 Bundle-Name: Wörterbuch4j
 
-Bundle-Version: 12.0.1
+Bundle-Version: 13.0.0
 
 Bundle-Description: A Wörterbuch client library for the JVM
 
@@ -17,6 +17,7 @@ Bundle-License: AGPL-3.0-or-later; \
 
 Export-Package: \
 	net.bbmsoft.worterbuch.client,\
+	net.bbmsoft.worterbuch.client.response,\
 	net.bbmsoft.worterbuch.client.api,\
 	net.bbmsoft.worterbuch.client.api.util,\
 	net.bbmsoft.worterbuch.client.api.util.type,\

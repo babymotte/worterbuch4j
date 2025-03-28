@@ -9,7 +9,8 @@ Bundle-Version: 1.0.0.${tstamp}
 	osgi.annotation;version='7.0.0',\
 	osgi.cmpn;version='7.0.0',\
 	worterbuch-client;version=latest,\
-	worterbuch-client-api
+	worterbuch-client-api,\
+	com.fasterxml.jackson.core.jackson-core
 
 javac.source: 17
 javac.target: 17

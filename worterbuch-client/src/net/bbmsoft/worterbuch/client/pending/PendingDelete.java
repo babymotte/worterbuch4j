@@ -23,10 +23,10 @@ import java.lang.reflect.Type;
 import java.util.concurrent.CompletableFuture;
 
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
-import net.bbmsoft.worterbuch.client.error.Result;
 import net.bbmsoft.worterbuch.client.model.ClientMessage;
+import net.bbmsoft.worterbuch.client.response.Response;
 
 @SuppressFBWarnings({ "EI_EXPOSE_REP", "EI_EXPOSE_REP2" })
-public record PendingDelete<T>(ClientMessage request, CompletableFuture<Result<T>> callback, Type type) {
+public record PendingDelete<T>(ClientMessage request, CompletableFuture<Response<T>> callback, Type type) {
 
 }

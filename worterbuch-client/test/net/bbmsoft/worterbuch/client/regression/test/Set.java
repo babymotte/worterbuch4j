@@ -11,7 +11,7 @@ import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import net.bbmsoft.worterbuch.client.api.WorterbuchException;
+import net.bbmsoft.worterbuch.client.error.WorterbuchException;
 import net.bbmsoft.worterbuch.client.regression.test.Util.ContainerizedWB;
 
 public class Set {
@@ -34,8 +34,8 @@ public class Set {
 
 		final var original = 123;
 
-		Set.WB.client.set("set/hello/world", original).result().get();
-		final var value = Set.WB.client.get("set/hello/world", Integer.class).result().get().get();
+		Set.WB.client.set("set/hello/world", original).responseFuture().get();
+		final var value = Set.WB.client.get("set/hello/world", Integer.class).responseFuture().get().value();
 		Assert.assertEquals(original, value.intValue());
 	}
 
@@ -44,8 +44,8 @@ public class Set {
 
 		final var original = new HelloWorld("Hello", "world");
 
-		Set.WB.client.set("set/hello/world", original).result().get();
-		final var value = Set.WB.client.get("set/hello/world", HelloWorld.class).result().get().get();
+		Set.WB.client.set("set/hello/world", original).responseFuture().get();
+		final var value = Set.WB.client.get("set/hello/world", HelloWorld.class).responseFuture().get().value();
 		Assert.assertEquals(original, value);
 	}
 
@@ -55,10 +55,10 @@ public class Set {
 		final var original = 123;
 		final var queue = new SynchronousQueue<Integer>();
 
-		Set.WB.client.set("set/hello/world", original).result().thenAcceptAsync(r -> {
-			Set.WB.client.get("set/hello/world", Integer.class).result().thenAcceptAsync(v -> {
+		Set.WB.client.set("set/hello/world", original).responseFuture().thenAcceptAsync(r -> {
+			Set.WB.client.get("set/hello/world", Integer.class).responseFuture().thenAcceptAsync(v -> {
 				try {
-					queue.offer(v.get(), 1, TimeUnit.SECONDS);
+					queue.offer(v.value(), 1, TimeUnit.SECONDS);
 				} catch (final InterruptedException e) {
 					Assert.fail();
 				}
@@ -75,10 +75,10 @@ public class Set {
 		final var original = new HelloWorld("Hello", "world");
 		final var queue = new SynchronousQueue<HelloWorld>();
 
-		Set.WB.client.set("set/hello/world", original).result().thenAcceptAsync(r -> {
-			Set.WB.client.get("set/hello/world", HelloWorld.class).result().thenAcceptAsync(v -> {
+		Set.WB.client.set("set/hello/world", original).responseFuture().thenAcceptAsync(r -> {
+			Set.WB.client.get("set/hello/world", HelloWorld.class).responseFuture().thenAcceptAsync(v -> {
 				try {
-					queue.offer(v.get(), 1, TimeUnit.SECONDS);
+					queue.offer(v.value(), 1, TimeUnit.SECONDS);
 				} catch (final InterruptedException e) {
 					Assert.fail();
 				}

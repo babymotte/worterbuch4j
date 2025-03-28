@@ -12,7 +12,7 @@ import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import net.bbmsoft.worterbuch.client.api.WorterbuchException;
+import net.bbmsoft.worterbuch.client.error.WorterbuchException;
 import net.bbmsoft.worterbuch.client.regression.test.Util.ContainerizedWB;
 
 public class Subscribe {
@@ -36,7 +36,7 @@ public class Subscribe {
 		final var value = new SynchronousQueue<Optional<String>>();
 
 		Subscribe.WB.client.subscribe("subscribe/hello/world/not/existing", true, false, String.class, value::add)
-				.result().get();
+				.responseFuture().get();
 
 		Assert.assertEquals(null, value.poll(100, TimeUnit.MILLISECONDS));
 	}
@@ -46,7 +46,7 @@ public class Subscribe {
 
 		final var value = new SynchronousQueue<Optional<String>>();
 
-		Subscribe.WB.client.set("subscribe/hello/world/already/set", "hello").result().get();
+		Subscribe.WB.client.set("subscribe/hello/world/already/set", "hello").responseFuture().get();
 
 		Subscribe.WB.client.subscribe("subscribe/hello/world/already/set", true, false, String.class, v -> {
 			try {
@@ -54,7 +54,7 @@ public class Subscribe {
 			} catch (final InterruptedException e) {
 				Assert.fail();
 			}
-		}).result().get();
+		}).responseFuture().get();
 
 		Assert.assertEquals("hello", value.poll(100, TimeUnit.MILLISECONDS).get());
 	}

@@ -12,7 +12,7 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 
 import net.bbmsoft.worterbuch.client.api.ErrorCode;
-import net.bbmsoft.worterbuch.client.api.WorterbuchException;
+import net.bbmsoft.worterbuch.client.error.WorterbuchException;
 import net.bbmsoft.worterbuch.client.model.Err;
 import net.bbmsoft.worterbuch.client.regression.test.Util.ContainerizedWB;
 
@@ -34,7 +34,7 @@ public class Get {
 	@Test
 	public void syncGetWorks() throws InterruptedException, ExecutionException {
 
-		final var value = Get.WB.client.get("$SYS/license", String.class).result().get().get();
+		final var value = Get.WB.client.get("$SYS/license", String.class).responseFuture().get().value();
 		Assert.assertEquals("AGPL-3.0-or-later", value);
 	}
 
@@ -43,9 +43,9 @@ public class Get {
 
 		final var queue = new SynchronousQueue<String>();
 
-		Get.WB.client.get("$SYS/license", String.class).result().thenAcceptAsync(v -> {
+		Get.WB.client.get("$SYS/license", String.class).responseFuture().thenAcceptAsync(v -> {
 			try {
-				queue.offer(v.get(), 1, TimeUnit.SECONDS);
+				queue.offer(v.value(), 1, TimeUnit.SECONDS);
 			} catch (final InterruptedException e) {
 				Assert.fail();
 			}
@@ -58,7 +58,7 @@ public class Get {
 	public void syncGetOfNonexistingKeyReturnsNoSuchElement() throws InterruptedException, ExecutionException {
 
 		Assert.assertEquals(ErrorCode.NoSuchValue,
-				Get.WB.client.get("key/not/set", String.class).result().get().err().getErrorCode());
+				Get.WB.client.get("key/not/set", String.class).responseFuture().get().err().getErrorCode());
 	}
 
 	@Test
@@ -66,7 +66,7 @@ public class Get {
 
 		final var queue = new SynchronousQueue<Err>();
 
-		Get.WB.client.get("key/not/set", String.class).result().thenAcceptAsync(v -> {
+		Get.WB.client.get("key/not/set", String.class).responseFuture().thenAcceptAsync(v -> {
 			try {
 				queue.offer(v.err(), 1, TimeUnit.SECONDS);
 			} catch (final InterruptedException e) {

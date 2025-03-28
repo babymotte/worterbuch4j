@@ -30,7 +30,7 @@ import java.util.concurrent.TimeoutException;
 
 import net.bbmsoft.worterbuch.client.Worterbuch;
 import net.bbmsoft.worterbuch.client.api.WorterbuchClient;
-import net.bbmsoft.worterbuch.client.api.WorterbuchException;
+import net.bbmsoft.worterbuch.client.error.WorterbuchException;
 import net.bbmsoft.worterbuch.speedtester.SpeedTester.StatusListener;
 
 public final class Agent {
@@ -66,7 +66,7 @@ public final class Agent {
 						+ (port != null ? port : "8081")));
 
 		System.err.println("Connecting to worterbuch server " + uri);
-		this.wb = Worterbuch.connect(Arrays.asList(uri), null, this.executor, this::onDisconnect, this::onError);
+		this.wb = Worterbuch.connect(Arrays.asList(uri), null, this::onDisconnect, this::onError);
 	}
 
 	public void start() {

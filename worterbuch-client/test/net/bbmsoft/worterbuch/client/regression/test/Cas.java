@@ -13,7 +13,7 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 
 import net.bbmsoft.worterbuch.client.api.ErrorCode;
-import net.bbmsoft.worterbuch.client.api.WorterbuchException;
+import net.bbmsoft.worterbuch.client.error.WorterbuchException;
 import net.bbmsoft.worterbuch.client.regression.test.Util.ContainerizedWB;
 
 public class Cas {
@@ -36,9 +36,9 @@ public class Cas {
 
 		final var key = "cas/Values/Cannot/Be/Set/Regularly";
 
-		Cas.WB.client.cSet(key, "hello", 0).result().get().get();
+		Cas.WB.client.cSet(key, "hello", 0).responseFuture().get().value();
 
-		Assert.assertEquals(ErrorCode.Cas, Cas.WB.client.set(key, "world").result().get().err().getErrorCode());
+		Assert.assertEquals(ErrorCode.Cas, Cas.WB.client.set(key, "world").responseFuture().get().err().getErrorCode());
 	}
 
 	@Test
@@ -47,9 +47,9 @@ public class Cas {
 		final var key = "regular/Get/On/Cas/Value/Returns/Only/Value";
 		final var original = "hello";
 
-		Cas.WB.client.cSet(key, original, 0).result().get().get();
+		Cas.WB.client.cSet(key, original, 0).responseFuture().get().value();
 
-		Assert.assertEquals(original, Cas.WB.client.get(key, String.class).result().get().get());
+		Assert.assertEquals(original, Cas.WB.client.get(key, String.class).responseFuture().get().value());
 	}
 
 	@Test
@@ -58,10 +58,10 @@ public class Cas {
 		final var key = "pGet/On/Cas/Value/Returns/Only/Value";
 		final var original = "hello";
 
-		Cas.WB.client.cSet(key, original, 0).result().get().get();
+		Cas.WB.client.cSet(key, original, 0).responseFuture().get().value();
 
 		Assert.assertEquals(original,
-				Cas.WB.client.pGet(key, String.class).result().get().get().iterator().next().getValue());
+				Cas.WB.client.pGet(key, String.class).responseFuture().get().value().iterator().next().getValue());
 	}
 
 	@Test
@@ -70,7 +70,7 @@ public class Cas {
 		final var key = "pSubscribe/On/Cas/Value/Returns/Only/Value";
 		final var original = "hello";
 
-		Cas.WB.client.cSet(key, original, 0).result().get().get();
+		Cas.WB.client.cSet(key, original, 0).responseFuture().get().value();
 
 		final var queue = new SynchronousQueue<String>();
 
@@ -80,7 +80,7 @@ public class Cas {
 			} catch (final InterruptedException e1) {
 				Assert.fail();
 			}
-		}).result().get();
+		}).responseFuture().get();
 
 		Assert.assertEquals(original, queue.poll(1, TimeUnit.SECONDS));
 	}

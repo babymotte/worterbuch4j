@@ -3,10 +3,8 @@ package net.bbmsoft.worterbuch.client.impl;
 import java.net.URI;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
 import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicReference;
@@ -20,24 +18,22 @@ import org.slf4j.LoggerFactory;
 
 import net.bbmsoft.worterbuch.client.api.Constants;
 import net.bbmsoft.worterbuch.client.api.WorterbuchClient;
-import net.bbmsoft.worterbuch.client.api.WorterbuchException;
-import net.bbmsoft.worterbuch.client.error.Error;
 import net.bbmsoft.worterbuch.client.error.WorterbuchError;
+import net.bbmsoft.worterbuch.client.error.WorterbuchException;
 import net.bbmsoft.worterbuch.client.model.Welcome;
+import net.bbmsoft.worterbuch.client.response.Error;
 
 public class Connector {
 
 	private final static Logger log = LoggerFactory.getLogger(Connector.class);
 	private final Iterable<URI> uris;
 	private final Optional<String> authToken;
-	private final Executor callbackExecutor;
 	private final BiConsumer<Integer, String> onDisconnect;
 	private final Consumer<WorterbuchException> onError;
 	private final WrappingExecutor exec;
 
 	public Connector(final Iterable<URI> uris, final Optional<String> authToken,
-			final Optional<ScheduledExecutorService> callbackExecutor, final BiConsumer<Integer, String> onDisconnect,
-			final Consumer<WorterbuchException> onError) {
+			final BiConsumer<Integer, String> onDisconnect, final Consumer<WorterbuchException> onError) {
 
 		Objects.requireNonNull(uris);
 		Objects.requireNonNull(authToken);
@@ -50,9 +46,7 @@ public class Connector {
 		this.onError = onError;
 		this.exec = new WrappingExecutor(
 				Executors.newSingleThreadScheduledExecutor(r -> new Thread(r, "worterbuch-client")), this.onError);
-		this.callbackExecutor = new WrappingExecutor(callbackExecutor.orElseGet(
-				() -> Executors.newSingleThreadScheduledExecutor(r -> new Thread(r, "worterbuch-client-callbacks"))),
-				this.onError);
+
 	}
 
 	public WorterbuchClient connect() throws TimeoutException, WorterbuchException {
@@ -112,7 +106,7 @@ public class Connector {
 			@Override
 			public void onWebSocketText(final String message) {
 				Connector.this.exec.execute(() -> {
-					wb.messageReceived(message, Connector.this.callbackExecutor);
+					wb.messageReceived(message);
 				});
 			}
 
@@ -172,7 +166,7 @@ public class Connector {
 
 		wb.start(w -> this.onWelcome(w, wb, handshakeLatch));
 
-		clientSocket.open(msg -> wb.messageReceived(msg, this.callbackExecutor), Config.SEND_TIMEOUT, TimeUnit.SECONDS);
+		clientSocket.open(msg -> wb.messageReceived(msg), Config.SEND_TIMEOUT, TimeUnit.SECONDS);
 
 		final var handshakeError = handshakeLatch.poll(Config.CONNECT_TIMEOUT, TimeUnit.SECONDS);
 		if (handshakeError == null) {
@@ -200,8 +194,8 @@ public class Connector {
 
 			client.clientId = welcome.getClientId();
 
-			client.switchProtocol(protoVersion.get()).result().thenAccept(swres -> {
-				if (swres instanceof final Error<Void> err) {
+			client.switchProtocol(protoVersion.get()).responseFuture().thenAccept(swres -> {
+				if (swres instanceof final Error<?> err) {
 					latch.add(Optional.of(new WorterbuchException(new WorterbuchError(err.err()))));
 					return;
 				}
@@ -212,8 +206,8 @@ public class Connector {
 								"server requires authorization but no auth token was provided"));
 						return;
 					}
-					client.authorize(this.authToken.get()).result().thenAccept(aures -> {
-						if (aures instanceof final Error<Void> err) {
+					client.authorize(this.authToken.get()).responseFuture().thenAccept(aures -> {
+						if (aures instanceof final Error<?> err) {
 							latch.add(Optional.of(new WorterbuchException(new WorterbuchError(err.err()))));
 							return;
 						}

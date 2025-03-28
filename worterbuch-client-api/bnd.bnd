@@ -1,4 +1,4 @@
-Bundle-Version: 12.0.1
+Bundle-Version: 13.0.0
 
 Require-Capability: compile-only
 
@@ -19,4 +19,5 @@ Export-Package: \
 	net.bbmsoft.worterbuch.client.api,\
 	net.bbmsoft.worterbuch.client.error,\
 	net.bbmsoft.worterbuch.client.api.util,\
-	net.bbmsoft.worterbuch.client.api.util.type
+	net.bbmsoft.worterbuch.client.api.util.type,\
+	net.bbmsoft.worterbuch.client.response

@@ -11,7 +11,7 @@ import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import net.bbmsoft.worterbuch.client.api.WorterbuchException;
+import net.bbmsoft.worterbuch.client.error.WorterbuchException;
 import net.bbmsoft.worterbuch.client.regression.test.Util.ContainerizedWB;
 
 public class AcquireLock {
@@ -33,7 +33,7 @@ public class AcquireLock {
 	@Test
 	public void lockIsGrantedIfNotHeld() throws InterruptedException, ExecutionException, TimeoutException {
 		final var key = "acquireLock/lockIsGrantedIfNotHeld";
-		AcquireLock.WB.client.acquireLock(key).result().get(100, TimeUnit.MILLISECONDS).get();
+		AcquireLock.WB.client.acquireLock(key).responseFuture().get(100, TimeUnit.MILLISECONDS).value();
 	}
 
 	@Test(expected = TimeoutException.class)
@@ -43,14 +43,14 @@ public class AcquireLock {
 		try (final var secondClient = AcquireLock.WB.startSecondClient()) {
 
 			try {
-				secondClient.acquireLock(key).result().get(100, TimeUnit.MILLISECONDS).get();
+				secondClient.acquireLock(key).responseFuture().get(100, TimeUnit.MILLISECONDS).value();
 			} catch (final TimeoutException e) {
 				// this one is supposed to succeed
 				Assert.fail();
 			}
 
 			// this one is supposed to fail
-			AcquireLock.WB.client.acquireLock(key).result().get(100, TimeUnit.MILLISECONDS).get();
+			AcquireLock.WB.client.acquireLock(key).responseFuture().get(100, TimeUnit.MILLISECONDS).value();
 
 		}
 	}
@@ -64,13 +64,13 @@ public class AcquireLock {
 		try (final var secondClient = AcquireLock.WB.startSecondClient()) {
 
 			try {
-				secondClient.acquireLock(key).result().get(100, TimeUnit.MILLISECONDS).get();
+				secondClient.acquireLock(key).responseFuture().get(100, TimeUnit.MILLISECONDS).value();
 			} catch (final TimeoutException e) {
 				// this one is supposed to succeed
 				Assert.fail();
 			}
 
-			AcquireLock.WB.client.acquireLock(key).result().thenAcceptAsync(it -> latch.countDown());
+			AcquireLock.WB.client.acquireLock(key).responseFuture().thenAcceptAsync(it -> latch.countDown());
 
 			// this one is supposed to block
 			Assert.assertFalse(latch.await(100, TimeUnit.MILLISECONDS));

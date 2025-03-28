@@ -10,7 +10,8 @@ import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import net.bbmsoft.worterbuch.client.api.WorterbuchException;
+import net.bbmsoft.worterbuch.client.api.util.type.TypeUtil;
+import net.bbmsoft.worterbuch.client.error.WorterbuchException;
 import net.bbmsoft.worterbuch.client.regression.test.Util.ContainerizedWB;
 
 public class GraveGoods {
@@ -33,10 +34,10 @@ public class GraveGoods {
 
 		final var original = Arrays.asList("grave/goods/test/#", "some/more/#");
 
-		GraveGoods.WB.client.setGraveGoods(original).result().get();
+		GraveGoods.WB.client.setGraveGoods(original).responseFuture().get();
 		final var value = GraveGoods.WB.client
-				.getList("$SYS/clients/" + GraveGoods.WB.client.getClientId() + "/graveGoods", String.class).result()
-				.get().get();
+				.get("$SYS/clients/" + GraveGoods.WB.client.getClientId() + "/graveGoods", TypeUtil.list(String.class))
+				.responseFuture().get().value();
 
 		Assert.assertEquals(original, value);
 
@@ -48,8 +49,8 @@ public class GraveGoods {
 		GraveGoods.WB.client.updateGraveGoods(l -> l.add("and/from/update"));
 
 		final var value = GraveGoods.WB.client
-				.getList("$SYS/clients/" + GraveGoods.WB.client.getClientId() + "/graveGoods", String.class).result()
-				.get().get();
+				.get("$SYS/clients/" + GraveGoods.WB.client.getClientId() + "/graveGoods", TypeUtil.list(String.class))
+				.responseFuture().get().value();
 
 		Assert.assertEquals(Arrays.asList("grave/goods/test/#", "some/more/#", "and/from/update"), value);
 

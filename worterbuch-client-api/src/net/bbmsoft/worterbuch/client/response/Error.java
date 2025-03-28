@@ -1,38 +1,33 @@
-package net.bbmsoft.worterbuch.client.error;
+package net.bbmsoft.worterbuch.client.response;
 
 import java.util.Objects;
 
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import net.bbmsoft.worterbuch.client.model.Err;
 
-public final class Ok<T> implements Result<T> {
+public final class Error<T> implements Response<T> {
 
-	private final T result;
+	private final Err error;
 
 	@SuppressFBWarnings("EI_EXPOSE_REP2")
-	public Ok(final T result) {
-		this.result = result;
+	public Error(final Err error) {
+		this.error = error;
+	}
+
+	@Override
+	public T value() {
+		throw new IllegalStateException("called get on an error result: " + this.error);
 	}
 
 	@Override
 	@SuppressFBWarnings("EI_EXPOSE_REP")
-	public T get() {
-		return this.result;
-	}
-
-	@Override
 	public Err err() {
-		return null;
-	}
-
-	@Override
-	public boolean isOk() {
-		return true;
+		return this.error;
 	}
 
 	@Override
 	public int hashCode() {
-		return Objects.hash(this.result);
+		return Objects.hash(this.error);
 	}
 
 	@Override
@@ -46,13 +41,13 @@ public final class Ok<T> implements Result<T> {
 		if (this.getClass() != obj.getClass()) {
 			return false;
 		}
-		final var other = (Ok<?>) obj;
-		return Objects.equals(this.result, other.result);
+		final var other = (Error<?>) obj;
+		return Objects.equals(this.error, other.error);
 	}
 
 	@Override
 	public String toString() {
-		return "Ok [result=" + this.result + "]";
+		return "Error [error=" + this.error + "]";
 	}
 
 }

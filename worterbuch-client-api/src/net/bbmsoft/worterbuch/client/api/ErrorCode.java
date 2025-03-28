@@ -1,5 +1,8 @@
 package net.bbmsoft.worterbuch.client.api;
 
+/**
+ * WB protocol error codes sent by the server
+ */
 public interface ErrorCode {
 
 	public static final int IllegalWildcard = 0b00000000;

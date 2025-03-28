@@ -19,103 +19,300 @@
 
 package net.bbmsoft.worterbuch.client.api;
 
-import java.lang.reflect.Type;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.Executor;
 import java.util.function.Consumer;
 import java.util.function.Function;
-import java.util.function.Supplier;
 
 import org.osgi.annotation.versioning.ProviderType;
 
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import net.bbmsoft.worterbuch.client.api.util.Tuple;
-import net.bbmsoft.worterbuch.client.api.util.type.TypeUtil;
-import net.bbmsoft.worterbuch.client.error.Future;
 import net.bbmsoft.worterbuch.client.model.KeyValuePair;
+import net.bbmsoft.worterbuch.client.response.Future;
 
+/**
+ * A worterbuch client.
+ */
 @ProviderType
 public interface WorterbuchClient extends AutoCloseable {
 
-	<T> Future<Void> set(String key, T value);
+	/**
+	 * Set a retained value in the server's state store.
+	 *
+	 * @param key   the key for which to set the value
+	 * @param value the value to be set
+	 * @return a future that allows retrieving the transaction ID as well as
+	 *         awaiting the server response
+	 */
+	Future<Void> set(String key, Object value);
 
-	<T> Future<Void> publish(String key, T value);
+	/**
+	 * Publish an ephemeral value. The value will be forwarded to all current
+	 * subscribers but will not be stored on the server and thus not be received by
+	 * any future subscribers.
+	 *
+	 * @param key
+	 * @param value
+	 * @return a future that allows retrieving the transaction ID as well as
+	 *         awaiting the server response
+	 */
+	Future<Void> publish(String key, Object value);
 
-	<T> Future<Void> initPubStream(String key);
+	/**
+	 * Initiate a publish stream. This binds the provided key to this transaction's
+	 * ID so that subsequently values can be published just by using the transaction
+	 * ID, without the need to also provide the key every time.
+	 * <p/>
+	 * This is an optimization over regular publish operation to reduce network
+	 * traffic when repeatedly publishing new values to the same key with high
+	 * frequency.
+	 *
+	 * @param key
+	 * @return a future that allows retrieving the transaction ID as well as
+	 *         awaiting the server response
+	 */
+	Future<Void> initPubStream(String key);
 
-	<T> Future<Void> streamPub(long transactionId, T value);
+	/**
+	 * Publish to a previously initiated pblish stream.
+	 *
+	 * @param transactionId
+	 * @param value
+	 * @return a future that allows retrieving the transaction ID as well as
+	 *         awaiting the server response
+	 */
+	Future<Void> streamPub(long transactionId, Object value);
 
-	default <T> Future<T> get(final String key, final Class<T> type) {
-		return this.get(key, (Type) type);
-	}
+	/**
+	 * Retrieve the current value of the specified key.
+	 *
+	 * @param <T>
+	 * @param key
+	 * @param type
+	 * @return a future that allows retrieving the transaction ID as well as
+	 *         awaiting the server response
+	 */
+	<T> Future<T> get(final String key, final Class<T> type);
 
-	<T> Future<T> get(String key, Type type);
+	/**
+	 * Retrieve the current value of the specified key.
+	 *
+	 * @param <T>
+	 * @param key
+	 * @param type
+	 * @return a future that allows retrieving the transaction ID as well as
+	 *         awaiting the server response
+	 */
+	<T> Future<T> get(final String key, final TypeReference<T> type);
 
-	default <T> Future<List<T>> getList(final String key, final Class<T> elementType) {
-		return this.get(key, TypeUtil.listType(elementType));
-	}
+	/**
+	 * Retrieve all key/value pairs where the key matches the specified pattern.
+	 *
+	 * @param <T>
+	 * @param pattern
+	 * @param type
+	 * @return a future that allows retrieving the transaction ID as well as
+	 *         awaiting the server response
+	 */
+	<T> Future<List<TypedKeyValuePair<T>>> pGet(final String pattern, final Class<T> type);
 
-	default <T> Future<List<TypedKeyValuePair<T>>> pGet(final String pattern, final Class<T> type) {
-		return this.pGet(pattern, (Type) type);
-	}
+	/**
+	 * Retrieve all key/value pairs where the key matches the specified pattern.
+	 *
+	 * @param <T>
+	 * @param pattern
+	 * @param type
+	 * @return a future that allows retrieving the transaction ID as well as
+	 *         awaiting the server response
+	 */
+	<T> Future<List<TypedKeyValuePair<T>>> pGet(String pattern, TypeReference<T> type);
 
-	<T> Future<List<TypedKeyValuePair<T>>> pGet(String pattern, Type type);
+	/**
+	 * Delete a value from the server's state store.
+	 *
+	 * @param <T>
+	 * @param key
+	 * @param type
+	 * @return a future that allows retrieving the transaction ID as well as
+	 *         awaiting the server response
+	 */
+	<T> Future<T> delete(final String key, final Class<T> type);
 
-	default <T> Future<T> delete(final String key, final Class<T> type) {
-		return this.delete(key, (Type) type);
-	}
+	/**
+	 * Delete a value from the server's state store.
+	 *
+	 * @param <T>
+	 * @param key
+	 * @param type
+	 * @return a future that allows retrieving the transaction ID as well as
+	 *         awaiting the server response
+	 */
+	<T> Future<T> delete(String key, TypeReference<T> type);
 
-	<T> Future<T> delete(String key, Type type);
-
+	/**
+	 * Delete a value from the server's state store.
+	 *
+	 * @param key
+	 * @return a future that allows retrieving the transaction ID as well as
+	 *         awaiting the server response
+	 */
 	Future<Void> delete(String key);
 
-	default <T> Future<List<TypedKeyValuePair<T>>> pDelete(final String pattern, final Class<T> type) {
-		return this.pDelete(pattern, (Type) type);
-	}
+	/**
+	 * Delete all key/value pairs from the server's state store where the key
+	 * matches the provided pattern.
+	 *
+	 * @param <T>
+	 * @param pattern
+	 * @param type
+	 * @return a future that allows retrieving the transaction ID as well as
+	 *         awaiting the server response
+	 */
+	<T> Future<List<TypedKeyValuePair<T>>> pDelete(final String pattern, final Class<T> type);
 
-	<T> Future<List<TypedKeyValuePair<T>>> pDelete(String pattern, Type type);
+	/**
+	 * Delete all key/value pairs from the server's state store where the key
+	 * matches the provided pattern.
+	 *
+	 * @param <T>
+	 * @param pattern
+	 * @param type
+	 * @return a future that allows retrieving the transaction ID as well as
+	 *         awaiting the server response
+	 */
+	<T> Future<List<TypedKeyValuePair<T>>> pDelete(String pattern, TypeReference<T> type);
 
+	/**
+	 * Delete all key/value pairs from the server's state store where the key
+	 * matches the provided pattern.
+	 *
+	 * @param pattern
+	 * @return a future that allows retrieving the transaction ID as well as
+	 *         awaiting the server response
+	 */
 	Future<Void> pDelete(String pattern);
 
+	/**
+	 * List all immediate child key segments of the specified partial key.
+	 *
+	 * @param parent
+	 * @return a future that allows retrieving the transaction ID as well as
+	 *         awaiting the server response
+	 */
 	Future<List<String>> ls(String parent);
 
+	/**
+	 * List all immediate child key segments of all partial keys matching the
+	 * specified pattern.
+	 *
+	 * @param parentPattern
+	 * @return a future that allows retrieving the transaction ID as well as
+	 *         awaiting the server response
+	 */
 	Future<List<String>> pLs(String parentPattern);
 
-	default <T> Future<Void> subscribe(final String key, final boolean unique, final boolean liveOnly,
-			final Class<T> type, final Consumer<Optional<T>> callback) {
-		return this.subscribe(key, unique, liveOnly, (Type) type, callback);
-	}
+	/**
+	 * Subscribe to changes of the value of the specified key.
+	 *
+	 * @param <T>
+	 * @param key
+	 * @param unique
+	 * @param liveOnly
+	 * @param type
+	 * @param callback
+	 * @return a future that allows retrieving the transaction ID as well as
+	 *         awaiting the server response
+	 */
+	<T> Future<Void> subscribe(final String key, final boolean unique, final boolean liveOnly, final Class<T> type,
+			final Consumer<Optional<T>> callback);
 
-	<T> Future<Void> subscribe(String key, boolean unique, boolean liveOnly, Type type, Consumer<Optional<T>> callback);
+	/**
+	 * Subscribe to changes of the value of the specified key.
+	 *
+	 * @param <T>
+	 * @param key
+	 * @param unique
+	 * @param liveOnly
+	 * @param type
+	 * @param callback
+	 * @return a future that allows retrieving the transaction ID as well as
+	 *         awaiting the server response
+	 */
+	<T> Future<Void> subscribe(String key, boolean unique, boolean liveOnly, TypeReference<T> type,
+			Consumer<Optional<T>> callback);
 
+	/**
+	 * Subscribe to changes of the value of the specified key.
+	 *
+	 * @param <T>
+	 * @param key
+	 * @param unique
+	 * @param liveOnly
+	 * @param type
+	 * @param callback
+	 * @param executor
+	 * @return a future that allows retrieving the transaction ID as well as
+	 *         awaiting the server response
+	 */
 	default <T> Future<Void> subscribe(final String key, final boolean unique, final boolean liveOnly,
 			final Class<T> type, final Consumer<Optional<T>> callback, final Executor executor) {
 		return this.subscribe(key, unique, liveOnly, type, v -> executor.execute(() -> callback.accept(v)));
 	}
 
-	default <T> Future<Void> subscribe(final String key, final boolean unique, final boolean liveOnly, final Type type,
-			final Consumer<Optional<T>> callback, final Executor executor) {
+	/**
+	 * Subscribe to changes of the value of the specified key.
+	 *
+	 * @param <T>
+	 * @param key
+	 * @param unique
+	 * @param liveOnly
+	 * @param type
+	 * @param callback
+	 * @param executor
+	 * @return a future that allows retrieving the transaction ID as well as
+	 *         awaiting the server response
+	 */
+	default <T> Future<Void> subscribe(final String key, final boolean unique, final boolean liveOnly,
+			final TypeReference<T> type, final Consumer<Optional<T>> callback, final Executor executor) {
 		return this.<T>subscribe(key, unique, liveOnly, type, v -> executor.execute(() -> callback.accept(v)));
 	}
 
-	default <T> Future<Void> subscribeList(final String key, final boolean unique, final boolean liveOnly,
-			final Class<T> elementType, final Consumer<Optional<List<T>>> callback) {
-		return this.subscribe(key, unique, liveOnly, TypeUtil.listType(elementType), callback);
-	}
+	/**
+	 * Subscribe to changes of the values of all keys matching the specified
+	 * pattern.
+	 *
+	 * @param <T>
+	 * @param pattern
+	 * @param unique
+	 * @param liveOnly
+	 * @param aggregateEvents
+	 * @param type
+	 * @param callback
+	 * @return a future that allows retrieving the transaction ID as well as
+	 *         awaiting the server response
+	 */
+	<T> Future<Void> pSubscribe(final String pattern, final boolean unique, final boolean liveOnly,
+			final Optional<Long> aggregateEvents, final Class<T> type, final Consumer<TypedPStateEvent<T>> callback);
 
-	default <T> Future<Void> subscribeList(final String key, final boolean unique, final boolean liveOnly,
-			final Class<T> elementType, final Consumer<Optional<List<T>>> callback, final Executor executor) {
-		return this.subscribeList(key, unique, liveOnly, elementType, v -> executor.execute(() -> callback.accept(v)));
-	}
-
-	default <T> Future<Void> pSubscribe(final String pattern, final boolean unique, final boolean liveOnly,
-			final Optional<Long> aggregateEvents, final Class<T> type, final Consumer<TypedPStateEvent<T>> callback) {
-		return this.pSubscribe(pattern, unique, liveOnly, aggregateEvents, (Type) type, callback);
-	}
-
+	/**
+	 * Subscribe to changes of the values of all keys matching the specified
+	 * pattern.
+	 *
+	 * @param <T>
+	 * @param pattern
+	 * @param unique
+	 * @param liveOnly
+	 * @param aggregateEvents
+	 * @param type
+	 * @param callback
+	 * @param executor
+	 * @return a future that allows retrieving the transaction ID as well as
+	 *         awaiting the server response
+	 */
 	default <T> Future<Void> pSubscribe(final String pattern, final boolean unique, final boolean liveOnly,
 			final Optional<Long> aggregateEvents, final Class<T> type, final Consumer<TypedPStateEvent<T>> callback,
 			final Executor executor) {
@@ -123,80 +320,281 @@ public interface WorterbuchClient extends AutoCloseable {
 				v -> executor.execute(() -> callback.accept(v)));
 	}
 
+	/**
+	 * Subscribe to changes of the values of all keys matching the specified
+	 * pattern.
+	 *
+	 * @param <T>
+	 * @param pattern
+	 * @param unique
+	 * @param liveOnly
+	 * @param aggregateEvents
+	 * @param type
+	 * @param callback
+	 * @return a future that allows retrieving the transaction ID as well as
+	 *         awaiting the server response
+	 */
 	<T> Future<Void> pSubscribe(String pattern, boolean unique, boolean liveOnly, Optional<Long> aggregateEvents,
-			Type type, Consumer<TypedPStateEvent<T>> callback);
+			TypeReference<T> type, Consumer<TypedPStateEvent<T>> callback);
 
+	/**
+	 * Subscribe to changes of the values of all keys matching the specified
+	 * pattern.
+	 *
+	 * @param <T>
+	 * @param pattern
+	 * @param unique
+	 * @param liveOnly
+	 * @param aggregateEvents
+	 * @param type
+	 * @param callback
+	 * @param executor
+	 * @return a future that allows retrieving the transaction ID as well as
+	 *         awaiting the server response
+	 */
 	default <T> Future<Void> pSubscribe(final String pattern, final boolean unique, final boolean liveOnly,
-			final Optional<Long> aggregateEvents, final Type type, final Consumer<TypedPStateEvent<T>> callback,
-			final Executor executor) {
+			final Optional<Long> aggregateEvents, final TypeReference<T> type,
+			final Consumer<TypedPStateEvent<T>> callback, final Executor executor) {
 		return this.<T>pSubscribe(pattern, unique, liveOnly, aggregateEvents, type,
 				v -> executor.execute(() -> callback.accept(v)));
 	}
 
+	/**
+	 * Unsubscribe from changes of the value of the specified key.
+	 *
+	 * @param transactionId
+	 * @return a future that allows retrieving the transaction ID as well as
+	 *         awaiting the server response
+	 */
 	Future<Void> unsubscribe(long transactionId);
 
+	/**
+	 * Subscribe to changes of the immediate child keys of the specified partial
+	 * key.
+	 *
+	 * @param parent
+	 * @param callback
+	 * @return a future that allows retrieving the transaction ID as well as
+	 *         awaiting the server response
+	 */
 	Future<Void> subscribeLs(String parent, Consumer<List<String>> callback);
 
+	/**
+	 * Subscribe to changes of the immediate child keys of the specified partial
+	 * key.
+	 *
+	 * @param parent
+	 * @param callback
+	 * @param executor
+	 * @return a future that allows retrieving the transaction ID as well as
+	 *         awaiting the server response
+	 */
 	default Future<Void> subscribeLs(final String parent, final Consumer<List<String>> callback,
 			final Executor executor) {
 		return this.subscribeLs(parent, v -> executor.execute(() -> callback.accept(v)));
 	}
 
+	/**
+	 * Unsubscribe from changes of the immediate child keys of the specified partial
+	 * key.
+	 *
+	 * @param transactionId
+	 * @return a future that allows retrieving the transaction ID as well as
+	 *         awaiting the server response
+	 */
 	Future<Void> unsubscribeLs(long transactionId);
 
+	/**
+	 * Set a value for the provided key using compare-and-swap, where the specified
+	 * version is compared to the value's current version on the server.<br/>
+	 * If the versions match, the new value is set, otherwise the new value is
+	 * rejected with an error.
+	 *
+	 * @param <T>
+	 * @param key
+	 * @param value
+	 * @param version
+	 * @return a future that allows retrieving the transaction ID as well as
+	 *         awaiting the server response
+	 */
 	<T> Future<Void> cSet(String key, T value, long version);
 
-	default <T> Future<Tuple<T, Long>> cGet(final String key, final Class<T> type) {
-		return this.cGet(key, (Type) type);
-	}
+	/**
+	 * Retrieve the current value of the specified key along with the value's
+	 * current version.
+	 *
+	 * @param <T>
+	 * @param key
+	 * @param type
+	 * @return a future that allows retrieving the transaction ID as well as
+	 *         awaiting the server response
+	 */
+	<T> Future<Tuple<T, Long>> cGet(final String key, final Class<T> type);
 
-	<T> Future<Tuple<T, Long>> cGet(String key, Type type);
+	/**
+	 * Retrieve the current value of the specified key along with the value's
+	 * current version.
+	 *
+	 * @param <T>
+	 * @param key
+	 * @param type
+	 * @return a future that allows retrieving the transaction ID as well as
+	 *         awaiting the server response
+	 */
+	<T> Future<Tuple<T, Long>> cGet(String key, TypeReference<T> type);
 
-	default <T, V> boolean update(final String key, final Function<Optional<T>, V> transform, final Class<T> type) {
-		return this.update(key, transform, (Type) type);
-	}
+	/**
+	 * Update the value of the specified key using compare-and-swap.
+	 *
+	 * @param <T>
+	 * @param <V>
+	 * @param key
+	 * @param transform
+	 * @param type
+	 * @return
+	 */
+	<T, V> boolean update(final String key, final Function<Optional<T>, V> transform, final Class<T> type);
 
-	<T, V> boolean update(String key, Function<Optional<T>, V> transform, Type type);
+	/**
+	 * Update the value of the specified key using compare-and-swap.
+	 *
+	 * @param <T>
+	 * @param <V>
+	 * @param key
+	 * @param transform
+	 * @param type
+	 * @return
+	 */
+	<T, V> boolean update(String key, Function<Optional<T>, V> transform, TypeReference<T> type);
 
-	default <T> boolean update(final String key, final Supplier<T> seed, final Consumer<T> update,
-			final Class<T> type) {
-		return this.update(key, seed, update, (Type) type);
-	}
+	/**
+	 * Update the value of the specified key using compare-and-swap.
+	 *
+	 * @param <T>
+	 * @param key
+	 * @param seed
+	 * @param update
+	 * @param type
+	 * @return
+	 */
+	<T> boolean update(final String key, final Consumer<T> update, final Class<T> type);
 
-	default <T> boolean update(final String key, final Supplier<T> seed, final Consumer<T> update, final Type type) {
-		return this.<T, T>update(key, mi -> {
-			final var i = mi.orElseGet(seed);
-			update.accept(i);
-			return i;
-		}, type);
-	}
+	/**
+	 * Update the value of the specified key using compare-and-swap.
+	 *
+	 * @param <T>
+	 * @param key
+	 * @param seed
+	 * @param update
+	 * @param type
+	 * @return
+	 */
+	<T> boolean update(final String key, final Consumer<T> update, final TypeReference<T> type);
 
-	default <T> boolean updateList(final String key, final Consumer<List<T>> update, final Class<T> elementType) {
-		return this.update(key, ArrayList::new, update, TypeUtil.listType(elementType));
-	}
-
+	/**
+	 * Try to get the lock on the specified key. If no one currently holds the lock
+	 * or the lock is held by this client, the server will immediately send a
+	 * success message, if the lock is currently held by another client, the server
+	 * will immediately send an error message.
+	 *
+	 * @param key
+	 * @return a future that allows retrieving the transaction ID as well as
+	 *         awaiting the server response
+	 */
 	Future<Void> lock(String key);
 
+	/**
+	 * Acquire the lock on the specified key, waiting if necessary for the lock to
+	 * become available.
+	 *
+	 * @param key
+	 * @return a future that allows retrieving the transaction ID as well as
+	 *         awaiting the server response
+	 */
 	Future<Void> acquireLock(String key);
 
+	/**
+	 * Release the lock on the specified key.
+	 *
+	 * @param key
+	 * @return a future that allows retrieving the transaction ID as well as
+	 *         awaiting the server response
+	 */
 	Future<Void> releaseLock(String key);
 
+	/**
+	 * Retrieve this client's grave goods from the server.
+	 *
+	 * @return a future that allows retrieving the transaction ID as well as
+	 *         awaiting the server response
+	 */
 	Future<List<String>> getGraveGoods();
 
+	/**
+	 * Retrieve this client's last will from the server.
+	 *
+	 * @return a future that allows retrieving the transaction ID as well as
+	 *         awaiting the server response
+	 */
 	Future<List<KeyValuePair>> getLastWill();
 
+	/**
+	 * Set the grave goods for this client. This will overwrite any previously set
+	 * grave goods.
+	 *
+	 * @param graveGoods
+	 * @return a future that allows retrieving the transaction ID as well as
+	 *         awaiting the server response
+	 */
 	Future<Void> setGraveGoods(List<String> graveGoods);
 
+	/**
+	 * Set the last will for this client. This will overwrite any previously set
+	 * last will.
+	 *
+	 * @param lastWill
+	 * @return a future that allows retrieving the transaction ID as well as
+	 *         awaiting the server response
+	 */
 	Future<Void> setLastWill(List<KeyValuePair> lastWill);
 
+	/**
+	 * Change this client's grave goods.
+	 *
+	 * @param update
+	 */
 	void updateGraveGoods(Consumer<List<String>> update);
 
+	/**
+	 * Change this client's last will.
+	 *
+	 * @param update
+	 */
 	void updateLastWill(Consumer<List<KeyValuePair>> update);
 
+	/**
+	 * Set a user readable name for this client. This is for debugging purposes
+	 * only.
+	 *
+	 * @param name
+	 * @return a future that allows retrieving the transaction ID as well as
+	 *         awaiting the server response
+	 */
 	Future<Void> setClientName(String name);
 
+	/**
+	 * Get the Jackson object mapper used by this client. This is intended to allow
+	 * registering custom serializers/deserializers if necessary.
+	 *
+	 * @return
+	 */
 	ObjectMapper getObjectMapper();
 
+	/**
+	 * Get the ID that was assigned to this client by the server.
+	 *
+	 * @return
+	 */
 	String getClientId();
 
 }

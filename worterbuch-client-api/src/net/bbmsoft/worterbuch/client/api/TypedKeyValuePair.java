@@ -52,6 +52,23 @@ public class TypedKeyValuePair<T> {
 	private T value;
 
 	/**
+	 * No args constructor for use in serialization
+	 * 
+	 */
+	public TypedKeyValuePair() {
+	}
+
+	/**
+	 * 
+	 * @param key The key.
+	 */
+	public TypedKeyValuePair(final String key, final T value) {
+		super();
+		this.key = key;
+		this.value = value;
+	}
+
+	/**
 	 * The key (Required)
 	 *
 	 */

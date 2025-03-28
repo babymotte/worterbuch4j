@@ -4,7 +4,7 @@ import java.io.IOException;
 import java.util.concurrent.Executor;
 import java.util.function.Consumer;
 
-import net.bbmsoft.worterbuch.client.api.WorterbuchException;
+import net.bbmsoft.worterbuch.client.error.WorterbuchException;
 
 public class MessageSender {
 

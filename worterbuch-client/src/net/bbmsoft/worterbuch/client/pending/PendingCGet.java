@@ -24,10 +24,10 @@ import java.util.concurrent.CompletableFuture;
 
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import net.bbmsoft.worterbuch.client.api.util.Tuple;
-import net.bbmsoft.worterbuch.client.error.Result;
 import net.bbmsoft.worterbuch.client.model.ClientMessage;
+import net.bbmsoft.worterbuch.client.response.Response;
 
 @SuppressFBWarnings({ "EI_EXPOSE_REP", "EI_EXPOSE_REP2" })
-public record PendingCGet<T>(ClientMessage request, CompletableFuture<Result<Tuple<T, Long>>> callback, Type type) {
+public record PendingCGet<T>(ClientMessage request, CompletableFuture<Response<Tuple<T, Long>>> callback, Type type) {
 
 }

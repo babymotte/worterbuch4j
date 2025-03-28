@@ -25,9 +25,10 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
-import java.util.TreeSet;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -39,21 +40,25 @@ import org.osgi.service.component.annotations.Deactivate;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.fasterxml.jackson.databind.type.TypeFactory;
-
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import net.bbmsoft.worterbuch.client.Worterbuch;
-import net.bbmsoft.worterbuch.client.api.WorterbuchException;
+import net.bbmsoft.worterbuch.client.api.WorterbuchClient;
+import net.bbmsoft.worterbuch.client.api.util.type.TypeUtil;
 import net.bbmsoft.worterbuch.client.collections.WbMap;
+import net.bbmsoft.worterbuch.client.error.WorterbuchException;
 import net.bbmsoft.worterbuch.client.model.KeyValuePair;
+import net.bbmsoft.worterbuch.client.response.Response;
 
 @Component
 public class ClientDemo {
 
 	private final Logger log = LoggerFactory.getLogger(this.getClass());
 	private volatile BundleContext ctx;
+	private volatile boolean deactivating;
 	private volatile boolean running;
-	private volatile Thread thread;
+
+	final ScheduledExecutorService testExecutor = Executors
+			.newSingleThreadScheduledExecutor(r -> new Thread(r, "WB Demo Executor"));
 
 	static record HelloWorld(String greeting, String gretee) {
 	}
@@ -65,47 +70,52 @@ public class ClientDemo {
 		this.ctx = ctx;
 		this.running = true;
 
-		this.thread = new Thread(() -> {
+		this.testExecutor.execute(() -> {
 			try {
 				this.run();
 			} catch (final Exception e) {
 				this.error(e);
 			}
 		});
-		this.thread.start();
 
 	}
 
 	@Deactivate
 	public void deactivate() {
+		this.deactivating = true;
 		this.running = false;
 	}
 
 	private void run() throws Exception {
-		
-		var executor = Executors.newSingleThreadExecutor();
 
 		final var uris = Arrays.asList(new URI("ws://localhost:8081/ws"), new URI("ws://localhost:8080"),
 				new URI("ws://localhost:8080/ws"));
 
 		final var authToken = System.getenv("WORTERBUCH_AUTH_TOKEN");
 
-		final var wb = authToken != null ? Worterbuch.connect(uris, authToken, null, this::exit, this::error)
+		final var wb = authToken != null ? Worterbuch.connect(uris, authToken, this::exit, this::error)
 				: Worterbuch.connect(uris, this::exit, this::error);
 
-		final var locked = wb.lock("testapp/state/leader").result().get().isOk();
-		System.out.println("Key locked: " + locked);
-
-		System.out.println("Acquiring lock on hello/world ...");
-		wb.acquireLock("hello/world").result().get();
-		System.out.println("Lock on hello/world acquired.");
+		this.log.info("Acquiring lock on testapp/state/leader ...");
+		wb.acquireLock("testapp/state/leader").await();
+		this.log.info("Lock on testapp/state/leader acquired.");
 
 		wb.set("testapp/state/running", true);
 
-		wb.pLs("$SYS/?/?").result().thenAccept(System.err::println);
-		System.err.println(wb.pLs("$SYS/?/?").result().get().get());
+		wb.get("testapp/state/running", Boolean.class).andThen(v -> {
+			this.printOptional(v);
+		}, this.testExecutor);
 
-		wb.subscribeList("testapp/state/collections/asyncList", true, true, HelloWorld.class, this::printOptional, executor);
+		wb.pLs("$SYS/?/?").andThen(this::printOptional, this.testExecutor);
+		this.printResponse(wb.pLs("$SYS/?/?").await());
+
+		wb.subscribe("testapp/state/collections/asyncList", true, true, TypeUtil.list(HelloWorld.class), v -> {
+			this.printOptional(v);
+		}, this.testExecutor);
+
+		wb.subscribe("testapp/state/collections/array", true, true, boolean[].class, v -> {
+			this.printOptional(v);
+		}, this.testExecutor);
 
 		wb.setLastWill(Collections.emptyList());
 		wb.setGraveGoods(Collections.emptyList());
@@ -115,19 +125,38 @@ public class ClientDemo {
 
 		final var map = new WbMap<>(wb, "testapp", "mapTest", "map", HelloWorld.class);
 
-		final var type = TypeFactory.defaultInstance().constructCollectionType(TreeSet.class, Integer.class);
-		for (var i = 0; i < 10; i++) {
+		for (var i = 0; i < 20; i++) {
 			final var it = i;
 			new Thread(() -> {
-				wb.update("testapp/state/cas-list", TreeSet::new, l -> l.add(it), type);
+				wb.update("testapp/state/cas-list", l -> {
+					l.add(it);
+				}, TypeUtil.treeSet(Integer.class));
 			}).start();
 		}
 
 		final var inverted = new AtomicBoolean();
 
-		while (this.running) {
+		this.loop(wb, map, inverted, 0);
 
-			wb.updateList("testapp/state/collections/asyncList", list -> {
+	}
+
+	private void loop(final WorterbuchClient wb, final WbMap<HelloWorld> map, final AtomicBoolean inverted, final int i)
+			throws Exception {
+
+		if (this.running) {
+
+			wb.update("testapp/state/collections/array", (final var maybeArray) -> {
+				if (maybeArray.isPresent()) {
+					final var arr = maybeArray.get();
+					final var idx = i % arr.length;
+					arr[idx] = !arr[idx];
+					return arr;
+				} else {
+					return new boolean[] { false, false, false };
+				}
+			}, boolean[].class);
+
+			wb.<List<HelloWorld>>update("testapp/state/collections/asyncList", list -> {
 
 				var counter = list.size() - 1;
 
@@ -162,20 +191,27 @@ public class ClientDemo {
 					inverted.set(true);
 				}
 
-			}, HelloWorld.class);
+			}, TypeUtil.list(HelloWorld.class));
 
-			try {
-				Thread.sleep(1000);
-			} catch (final InterruptedException e) {
-				break;
-			}
+			this.testExecutor.schedule(() -> {
+				try {
+					this.loop(wb, map, inverted, i + 1);
+				} catch (final Exception e) {
+					e.printStackTrace();
+					this.running = false;
+				}
+			}, 1, TimeUnit.SECONDS);
 
+		} else {
+			wb.close();
 		}
-
-		wb.close();
 	}
 
 	private void exit(final Integer errorCode, final String message) {
+		this.running = false;
+		if (this.deactivating) {
+			return;
+		}
 		this.log.error("Disconnected: {} ({})", message, errorCode);
 		if (this.ctx != null) {
 			final var sys = this.ctx.getBundle(0);
@@ -194,10 +230,12 @@ public class ClientDemo {
 		this.exit(-1, th.getMessage());
 	}
 
-	private <T> void printOptional(final Optional<List<T>> optional) {
-		optional.ifPresentOrElse(
-				it -> System.err.println(String.join(", ", Arrays.asList(it).stream().map(Object::toString).toList())),
-				() -> System.err.println("empty"));
+	private <T> void printResponse(final Response<T> resp) {
+		this.log.info("{}", resp);
+	}
+
+	private <T> void printOptional(final Optional<T> optional) {
+		optional.ifPresentOrElse(it -> this.log.info("{}", it), () -> this.log.info("empty"));
 	}
 
 }
