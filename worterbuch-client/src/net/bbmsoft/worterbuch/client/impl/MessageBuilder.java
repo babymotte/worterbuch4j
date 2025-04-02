@@ -98,7 +98,7 @@ public class MessageBuilder {
 	public static ClientMessage pSubscribeMessage(final long tid, final String pattern, final boolean unique,
 			final boolean liveOnly, final Optional<Long> aggregateEvents) {
 		final var msg = new ClientMessage();
-		msg.setpSubscribe(new PSubscribe(tid, pattern, unique, liveOnly, tid));
+		msg.setpSubscribe(new PSubscribe(tid, pattern, unique, liveOnly, aggregateEvents.orElse(0L)));
 		return msg;
 	}
 
