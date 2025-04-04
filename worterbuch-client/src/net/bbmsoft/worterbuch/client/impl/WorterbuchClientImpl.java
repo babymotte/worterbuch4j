@@ -262,12 +262,21 @@ public class WorterbuchClientImpl implements WorterbuchClient {
 	@Override
 	public Future<Void> pDelete(final String pattern) {
 		final var tid = this.acquireTid();
-		final var fut = new CompletableFuture<Response<Void>>();
+		final var fut = new CompletableFuture<Response<List<TypedKeyValuePair<Void>>>>();
 		final var msg = MessageBuilder.pDeleteMessage(tid, pattern, true);
 		final var json = this.messageSerde.serializeMessage(msg);
-		this.pendingAcks.put(tid, new PendingAck(msg, fut));
+		this.pendingPDeletes.put(tid, new PendingPDelete<>(msg, fut, null));
 		this.messageSender.sendMessage(json);
-		return new Future<>(fut, tid);
+		final Function<Response<List<TypedKeyValuePair<Void>>>, Response<Void>> map = r -> {
+			if (r instanceof final Error err) {
+				return new Error<>(err.err());
+			} else if (r instanceof Ok) {
+				return new Ok<>(null);
+			} else {
+				throw new IllegalStateException("unknown response type: " + r);
+			}
+		};
+		return new Future<>(fut.thenApply(map), tid);
 	}
 
 	@Override
