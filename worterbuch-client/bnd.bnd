@@ -47,6 +47,13 @@ Export-Package: \
 	osgi.annotation;version='7.0.0',\
 	osgi.core;version='7.0.0',\
 	osgi.cmpn;version='7.0.0',\
+	org.eclipse.jetty.websocket.api,\
+	org.eclipse.jetty.websocket.client,\
+	org.eclipse.jetty.websocket.common,\
+	org.eclipse.jetty.http,\
+	org.eclipse.jetty.client,\
+	org.eclipse.jetty.util,\
+	org.eclipse.jetty.io,\
 	worterbuch-client-api;version=snapshot,\
 	org.testcontainers:testcontainers,\
 	com.github.docker-java:docker-java-api,\

@@ -24,3 +24,8 @@ org.tukaani:xz:jar:1.9
 org.rnorth.duct-tape:duct-tape:jar:1.0.8
 org.jetbrains:annotations:jar:17.0.0
 org.slf4j:slf4j-api:jar:1.7.36
+
+org.mockito:mockito-core:jar:2.28.2
+net.bytebuddy:byte-buddy:jar:1.9.10
+net.bytebuddy:byte-buddy-agent:jar:1.9.10
+org.objenesis:objenesis:jar:2.6

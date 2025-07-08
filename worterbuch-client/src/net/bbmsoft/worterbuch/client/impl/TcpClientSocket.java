@@ -182,7 +182,16 @@ public final class TcpClientSocket implements ClientSocket {
 					final var line = sb.item.toString();
 					sb.item = new StringBuilder();
 					if (!line.isBlank()) {
-						messageConsumer.accept(line);
+						try {
+							messageConsumer.accept(line);
+						} catch (final Throwable th) {
+							if (th instanceof final WorterbuchException wbe) {
+								this.onError.accept(wbe);
+							} else {
+								this.onError.accept(new WorterbuchException(
+										"Unhandled exception in thread " + Thread.currentThread().getName(), th));
+							}
+						}
 					}
 					str = str.substring(lineBreak + 1);
 				}
