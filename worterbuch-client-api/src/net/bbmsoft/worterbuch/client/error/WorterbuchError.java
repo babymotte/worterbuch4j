@@ -2,7 +2,7 @@ package net.bbmsoft.worterbuch.client.error;
 
 import net.bbmsoft.worterbuch.client.model.Err;
 
-public class WorterbuchError extends Exception {
+public final class WorterbuchError extends WorterbuchException {
 
 	private static final long serialVersionUID = 6205646760526253152L;
 

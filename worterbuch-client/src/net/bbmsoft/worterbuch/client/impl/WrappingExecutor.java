@@ -30,6 +30,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.function.Consumer;
 
+import net.bbmsoft.worterbuch.client.error.UnhandledInternalException;
 import net.bbmsoft.worterbuch.client.error.WorterbuchException;
 
 public class WrappingExecutor implements ScheduledExecutorService {
@@ -137,7 +138,7 @@ public class WrappingExecutor implements ScheduledExecutorService {
 			try {
 				command.run();
 			} catch (final Throwable th) {
-				this.onError.accept(new WorterbuchException("unknown uncaught exception occurred", th));
+				this.onError.accept(new UnhandledInternalException(th));
 			}
 		};
 	}
@@ -147,7 +148,7 @@ public class WrappingExecutor implements ScheduledExecutorService {
 			try {
 				return command.call();
 			} catch (final Throwable th) {
-				this.onError.accept(new WorterbuchException("unknown uncaught exception occurred", th));
+				this.onError.accept(new UnhandledInternalException(th));
 				throw th;
 			}
 		};

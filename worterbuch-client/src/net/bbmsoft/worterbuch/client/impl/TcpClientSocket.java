@@ -40,6 +40,8 @@ import java.util.function.Consumer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import net.bbmsoft.worterbuch.client.error.ConnectionError;
+import net.bbmsoft.worterbuch.client.error.UnhandledCallbackException;
 import net.bbmsoft.worterbuch.client.error.WorterbuchException;
 
 public final class TcpClientSocket implements ClientSocket {
@@ -71,7 +73,7 @@ public final class TcpClientSocket implements ClientSocket {
 
 	}
 
-	public void open(final Consumer<String> messageConsumer, final long writeTimeout, final TimeUnit timeoutUnit)
+	public void open(final MessageConsumer messageConsumer, final long writeTimeout, final TimeUnit timeoutUnit)
 			throws Throwable {
 
 		final var error = new SynchronousQueue<Optional<Throwable>>();
@@ -106,7 +108,12 @@ public final class TcpClientSocket implements ClientSocket {
 					}
 				});
 
-		final var res = error.poll(Config.CONNECT_TIMEOUT, TimeUnit.SECONDS);
+		Optional<Throwable> res = null;
+		try {
+			res = error.poll(Config.CONNECT_TIMEOUT, TimeUnit.SECONDS);
+		} catch (final InterruptedException e) {
+			Thread.currentThread().interrupt();
+		}
 
 		if (res == null) {
 			throw new TimeoutException("connection attempt timed out");
@@ -134,11 +141,11 @@ public final class TcpClientSocket implements ClientSocket {
 		try {
 			this.socket.close();
 		} catch (final IOException e) {
-			this.onError.accept(new WorterbuchException("error closing socket", e));
+			this.onError.accept(new ConnectionError("error closing socket", e));
 		}
 	}
 
-	private void receiveLoop(final Consumer<String> messageConsumer) {
+	private void receiveLoop(final MessageConsumer messageConsumer) {
 
 		final var buf = ByteBuffer.allocate(1024);
 		final var sb = new Ref<StringBuilder>();
@@ -184,13 +191,8 @@ public final class TcpClientSocket implements ClientSocket {
 					if (!line.isBlank()) {
 						try {
 							messageConsumer.accept(line);
-						} catch (final Throwable th) {
-							if (th instanceof final WorterbuchException wbe) {
-								this.onError.accept(wbe);
-							} else {
-								this.onError.accept(new WorterbuchException(
-										"Unhandled exception in thread " + Thread.currentThread().getName(), th));
-							}
+						} catch (final UnhandledCallbackException e) {
+							this.onError.accept(e);
 						}
 					}
 					str = str.substring(lineBreak + 1);
@@ -282,7 +284,7 @@ public final class TcpClientSocket implements ClientSocket {
 		final var alreadyDisconnected = this.disconnected.getAndSet(true);
 		errorCode.item = 2;
 		message.item = "socket read error";
-		TcpClientSocket.this.onError.accept(new WorterbuchException("error reading from socket", e));
+		TcpClientSocket.this.onError.accept(new ConnectionError("error reading from socket", e));
 		Thread.currentThread().interrupt();
 		return alreadyDisconnected;
 	}
@@ -291,7 +293,7 @@ public final class TcpClientSocket implements ClientSocket {
 		final var alreadyDisconnected = this.disconnected.getAndSet(true);
 		errorCode.item = 3;
 		message.item = "socket write error";
-		TcpClientSocket.this.onError.accept(new WorterbuchException("error writing to socket", e));
+		TcpClientSocket.this.onError.accept(new ConnectionError("error writing to socket", e));
 		Thread.currentThread().interrupt();
 		return alreadyDisconnected;
 	}
@@ -302,7 +304,7 @@ public final class TcpClientSocket implements ClientSocket {
 			try {
 				this.socket.close();
 			} catch (final IOException e) {
-				this.onError.accept(new WorterbuchException("socket closed", e));
+				this.onError.accept(new ConnectionError("socket closed", e));
 			}
 		}
 	}

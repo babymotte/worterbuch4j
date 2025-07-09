@@ -1,6 +1,8 @@
 package net.bbmsoft.worterbuch.client.impl;
 
 import java.net.URI;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.Executors;
@@ -16,8 +18,12 @@ import org.eclipse.jetty.websocket.api.WebSocketAdapter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import net.bbmsoft.worterbuch.client.api.Constants;
 import net.bbmsoft.worterbuch.client.api.WorterbuchClient;
+import net.bbmsoft.worterbuch.client.error.ConnectionError;
+import net.bbmsoft.worterbuch.client.error.ConnectionFailed;
+import net.bbmsoft.worterbuch.client.error.MissingAuthToken;
+import net.bbmsoft.worterbuch.client.error.ProtocolVersionNotSupported;
+import net.bbmsoft.worterbuch.client.error.UnhandledCallbackException;
 import net.bbmsoft.worterbuch.client.error.WorterbuchError;
 import net.bbmsoft.worterbuch.client.error.WorterbuchException;
 import net.bbmsoft.worterbuch.client.model.Welcome;
@@ -49,9 +55,10 @@ public class Connector {
 
 	}
 
-	public WorterbuchClient connect() throws TimeoutException, WorterbuchException {
+	public WorterbuchClient connect() throws TimeoutException, ConnectionFailed {
 
 		WorterbuchClient client = null;
+		final Map<URI, Throwable> causes = new LinkedHashMap<>();
 
 		for (final URI uri : this.uris) {
 			try {
@@ -59,11 +66,12 @@ public class Connector {
 				break;
 			} catch (final Throwable e) {
 				Connector.log.warn("Could not connect to server {}: {}", uri, e.getMessage());
+				causes.put(uri, e);
 			}
 		}
 
 		if (client == null) {
-			throw new WorterbuchException("Could not connect to any server.");
+			throw new ConnectionFailed("Could not connect to any server.", causes);
 		} else {
 			return client;
 		}
@@ -106,7 +114,11 @@ public class Connector {
 			@Override
 			public void onWebSocketText(final String message) {
 				Connector.this.exec.execute(() -> {
-					wb.messageReceived(message);
+					try {
+						wb.messageReceived(message);
+					} catch (final UnhandledCallbackException e) {
+						Connector.this.onError.accept(e);
+					}
 				});
 			}
 
@@ -130,7 +142,7 @@ public class Connector {
 
 			@Override
 			public void onWebSocketError(final Throwable cause) {
-				errorHandler.get().accept(new WorterbuchException("error in websocket connection", cause));
+				errorHandler.get().accept(new ConnectionError("error in websocket connection", cause));
 			}
 		};
 
@@ -139,7 +151,7 @@ public class Connector {
 		final var error = preConnectError.poll(Config.CONNECT_TIMEOUT, TimeUnit.SECONDS);
 		if (error == null) {
 			wb.close();
-			throw new WorterbuchException("connection attempt timed out");
+			throw new TimeoutException("connection attempt timed out");
 		} else if (error.isPresent()) {
 			wb.close();
 			throw error.get();
@@ -148,7 +160,7 @@ public class Connector {
 		final var handshakeError = handshakeLatch.poll(Config.CONNECT_TIMEOUT, TimeUnit.SECONDS);
 		if (handshakeError == null) {
 			wb.close();
-			throw new WorterbuchException("connection attempt timed out");
+			throw new TimeoutException("connection attempt timed out");
 		} else if (handshakeError.isPresent()) {
 			wb.close();
 			throw handshakeError.get();
@@ -168,9 +180,14 @@ public class Connector {
 
 		clientSocket.open(msg -> wb.messageReceived(msg), Config.SEND_TIMEOUT, TimeUnit.SECONDS);
 
-		final var handshakeError = handshakeLatch.poll(Config.CONNECT_TIMEOUT, TimeUnit.SECONDS);
+		Optional<Throwable> handshakeError = null;
+		try {
+			handshakeError = handshakeLatch.poll(Config.CONNECT_TIMEOUT, TimeUnit.SECONDS);
+		} catch (final InterruptedException e) {
+			Thread.currentThread().interrupt();
+		}
 		if (handshakeError == null) {
-			throw new WorterbuchException("connection attempt timed out");
+			throw new TimeoutException("connection attempt timed out");
 		} else if (handshakeError.isPresent()) {
 			throw handshakeError.get();
 		}
@@ -187,8 +204,7 @@ public class Connector {
 
 		if (protoVersion.isEmpty()) {
 
-			latch.add(Optional.of(new WorterbuchException(
-					"Protocol version " + Constants.PROTOCOL_VERSION + " is not supported by the server.")));
+			latch.add(Optional.of(new ProtocolVersionNotSupported()));
 
 		} else {
 
@@ -196,19 +212,18 @@ public class Connector {
 
 			client.switchProtocol(protoVersion.get()).responseFuture().thenAccept(swres -> {
 				if (swres instanceof final Error<?> err) {
-					latch.add(Optional.of(new WorterbuchException(new WorterbuchError(err.err()))));
+					latch.add(Optional.of(new WorterbuchError(err.err())));
 					return;
 				}
 
 				if (serverInfo.isAuthorizationRequired()) {
 					if (this.authToken.isEmpty()) {
-						this.onError.accept(new WorterbuchException(
-								"server requires authorization but no auth token was provided"));
+						this.onError.accept(new MissingAuthToken());
 						return;
 					}
 					client.authorize(this.authToken.get()).responseFuture().thenAccept(aures -> {
 						if (aures instanceof final Error<?> err) {
-							latch.add(Optional.of(new WorterbuchException(new WorterbuchError(err.err()))));
+							latch.add(Optional.of(new WorterbuchError(err.err())));
 							return;
 						}
 						latch.add(Optional.empty());

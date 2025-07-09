@@ -37,7 +37,7 @@ public class AcquireLock {
 	}
 
 	@Test(expected = TimeoutException.class)
-	public void lockIsNotGrantedIfHeld() throws WorterbuchException, URISyntaxException, Exception {
+	public void lockIsNotGrantedIfHeld() throws URISyntaxException, Exception {
 		final var key = "acquireLock/lockIsNotGrantedIfHeld";
 
 		try (final var secondClient = AcquireLock.WB.startSecondClient()) {
@@ -56,7 +56,7 @@ public class AcquireLock {
 	}
 
 	@Test
-	public void lockIsGrantedAfterReleased() throws WorterbuchException, URISyntaxException, Exception {
+	public void lockIsGrantedAfterReleased() throws URISyntaxException, Exception {
 		final var key = "acquireLock/lockIsGrantedAfterReleased";
 
 		final var latch = new CountDownLatch(1);

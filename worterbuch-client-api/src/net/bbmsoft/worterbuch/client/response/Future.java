@@ -10,7 +10,7 @@ import java.util.concurrent.TimeoutException;
 import java.util.function.Consumer;
 
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
-import net.bbmsoft.worterbuch.client.error.WorterbuchException;
+import net.bbmsoft.worterbuch.client.error.ConnectionError;
 import net.bbmsoft.worterbuch.client.model.Err;
 
 @SuppressFBWarnings({ "EI_EXPOSE_REP", "EI_EXPOSE_REP2" })
@@ -20,19 +20,19 @@ public record Future<T>(CompletableFuture<Response<T>> responseFuture, long tran
 	 * Waits for the request to either succeed, in which case the server's
 	 * {@link Response response} is returned, or to fail (e.g. due to a network
 	 * error), in which case the resulting exception is thrown wrapped in a
-	 * {@link WorterbuchException}
+	 * {@link ConnectionError}
 	 *
 	 * @return the server's response
-	 * @throws WorterbuchException  if the request failed, e.g. due to a network
+	 * @throws ConnectionError      if the request failed, e.g. due to a network
 	 *                              error
 	 * @throws InterruptedException if the current thread is interrupted while
 	 *                              waiting for the server's response
 	 */
-	public Response<T> await() throws WorterbuchException, InterruptedException {
+	public Response<T> await() throws ConnectionError, InterruptedException {
 		try {
 			return this.responseFuture.get();
 		} catch (final ExecutionException e) {
-			throw new WorterbuchException("Could not get server response", e);
+			throw new ConnectionError("Could not get server response",e);
 		}
 	}
 
@@ -40,23 +40,23 @@ public record Future<T>(CompletableFuture<Response<T>> responseFuture, long tran
 	 * Waits at most the specified amount of time for the request to either succeed,
 	 * in which case the server's {@link Response response} is returned, or to fail
 	 * (e.g. due to a network error), in which case the resulting exception is
-	 * thrown wrapped in a {@link WorterbuchException}
+	 * thrown wrapped in a {@link ConnectionError}
 	 *
 	 * @param timeout the maximum time to wait
 	 * @param unit    time unit of the timeout argument
 	 * @return the server's {@link Response response}
-	 * @throws WorterbuchException  if the request failed, e.g. due to a network
+	 * @throws ConnectionError      if the request failed, e.g. due to a network
 	 *                              error
 	 * @throws InterruptedException if the current thread is interrupted while
 	 *                              waiting for the server's response
 	 * @throws TimeoutException     if the wait timed out
 	 */
 	public Response<T> await(final long timeout, final TimeUnit unit)
-			throws WorterbuchException, InterruptedException, TimeoutException {
+			throws ConnectionError, InterruptedException, TimeoutException {
 		try {
 			return this.responseFuture.get(timeout, unit);
 		} catch (final ExecutionException e) {
-			throw new WorterbuchException("Could not get server response", e);
+			throw new ConnectionError("Could not get server response",e);
 		}
 	}
 
@@ -64,18 +64,17 @@ public record Future<T>(CompletableFuture<Response<T>> responseFuture, long tran
 	 * Waits at most the specified amount of time for the request to either succeed,
 	 * in which case the server's {@link Response response} is returned, or to fail
 	 * (e.g. due to a network error), in which case the resulting exception is
-	 * thrown wrapped in a {@link WorterbuchException}
+	 * thrown wrapped in a {@link ConnectionError}
 	 *
 	 * @param timeout the maximum time to wait
 	 * @return the server's {@link Response response}
-	 * @throws WorterbuchException  if the request failed, e.g. due to a network
+	 * @throws ConnectionError      if the request failed, e.g. due to a network
 	 *                              error
 	 * @throws InterruptedException if the current thread is interrupted while
 	 *                              waiting for the server's response
 	 * @throws TimeoutException     if the wait timed out
 	 */
-	public Response<T> await(final Duration timeout)
-			throws WorterbuchException, InterruptedException, TimeoutException {
+	public Response<T> await(final Duration timeout) throws ConnectionError, InterruptedException, TimeoutException {
 		return this.await(timeout.toMillis(), TimeUnit.MILLISECONDS);
 	}
 

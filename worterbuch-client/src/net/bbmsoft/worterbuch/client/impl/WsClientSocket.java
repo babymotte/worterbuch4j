@@ -31,6 +31,7 @@ import org.eclipse.jetty.websocket.api.WriteCallback;
 import org.eclipse.jetty.websocket.client.ClientUpgradeRequest;
 import org.eclipse.jetty.websocket.client.WebSocketClient;
 
+import net.bbmsoft.worterbuch.client.error.ConnectionError;
 import net.bbmsoft.worterbuch.client.error.WorterbuchException;
 
 public class WsClientSocket implements ClientSocket, WriteCallback {
@@ -63,9 +64,13 @@ public class WsClientSocket implements ClientSocket, WriteCallback {
 	}
 
 	@Override
-	public void close() throws Exception {
+	public void close() {
 		this.session.close();
-		this.client.stop();
+		try {
+			this.client.stop();
+		} catch (final Exception e) {
+			this.onError.accept(new ConnectionError("Error closing websocket", e));
+		}
 	}
 
 	@Override
@@ -75,7 +80,7 @@ public class WsClientSocket implements ClientSocket, WriteCallback {
 
 	@Override
 	public void writeFailed(final Throwable x) {
-		this.onError.accept(new WorterbuchException("error writing to socket", x));
+		this.onError.accept(new ConnectionError("error writing to socket", x));
 	}
 
 	@Override

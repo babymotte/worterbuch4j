@@ -31,6 +31,9 @@ import net.bbmsoft.worterbuch.client.api.TypedKeyValuePair;
 import net.bbmsoft.worterbuch.client.api.TypedPStateEvent;
 import net.bbmsoft.worterbuch.client.api.WorterbuchClient;
 import net.bbmsoft.worterbuch.client.api.util.Tuple;
+import net.bbmsoft.worterbuch.client.error.ConnectionError;
+import net.bbmsoft.worterbuch.client.error.InvalidServerResponse;
+import net.bbmsoft.worterbuch.client.error.UnhandledCallbackException;
 import net.bbmsoft.worterbuch.client.error.WorterbuchError;
 import net.bbmsoft.worterbuch.client.error.WorterbuchException;
 import net.bbmsoft.worterbuch.client.impl.util.type.TypeUtil;
@@ -118,11 +121,7 @@ public class WorterbuchClientImpl implements WorterbuchClient {
 	@Override
 	public void close() {
 		WorterbuchClientImpl.log.info("Closing worterbuch client.");
-		try {
-			this.client.close();
-		} catch (final Exception e) {
-			this.onError.accept(new WorterbuchException("Error closing worterbuch client", e));
-		}
+		this.client.close();
 	}
 
 	@Override
@@ -438,8 +437,12 @@ public class WorterbuchClientImpl implements WorterbuchClient {
 					return true;
 				}
 			}
-		} catch (InterruptedException | TimeoutException | WorterbuchException e) {
-			this.onError.accept(new WorterbuchException("Error while trying to update compare-and-swap value", e));
+
+		} catch (InterruptedException | TimeoutException e) {
+			this.onError.accept(new ConnectionError("Error while trying to update compare-and-swap value", e));
+			return false;
+		} catch (final WorterbuchException e) {
+			this.onError.accept(e);
 			return false;
 		}
 
@@ -557,7 +560,7 @@ public class WorterbuchClientImpl implements WorterbuchClient {
 	}
 
 	private <T, V> boolean tryUpdate(final String key, final Function<Optional<T>, V> transform, final Type type)
-			throws WorterbuchException, InterruptedException, TimeoutException {
+			throws ConnectionError, InterruptedException, TimeoutException, WorterbuchError {
 
 		@SuppressWarnings("unchecked")
 		final var cached = (Tuple<T, Long>) this.casCache.get(key);
@@ -575,7 +578,7 @@ public class WorterbuchClientImpl implements WorterbuchClient {
 				final var set = this.cSet(key, newValue, version).await(Duration.ofSeconds(5));
 
 				return this.evalUpdate(set, key, newValue, version + 1);
-			} catch (JsonProcessingException | IllegalArgumentException e) {
+			} catch (JsonProcessingException | IllegalArgumentException | WorterbuchError e) {
 				// cached object is corrupt, proceed to fetch it new
 			}
 		}
@@ -609,7 +612,7 @@ public class WorterbuchClientImpl implements WorterbuchClient {
 				return this.evalUpdate(set, key, newValue, version + 1);
 			}
 
-			throw new WorterbuchException(new WorterbuchError(error.err()));
+			throw new WorterbuchError(error.err());
 
 		} else {
 			throw new IllegalStateException();
@@ -618,7 +621,7 @@ public class WorterbuchClientImpl implements WorterbuchClient {
 	}
 
 	private <T, V> boolean evalUpdate(final Response<Void> set, final String key, final Object newValue,
-			final Long newVersion) throws InterruptedException, WorterbuchException {
+			final Long newVersion) throws InterruptedException, ConnectionError, WorterbuchError {
 
 		if (set instanceof Ok) {
 
@@ -639,7 +642,7 @@ public class WorterbuchClientImpl implements WorterbuchClient {
 
 			}
 
-			throw new WorterbuchException(new WorterbuchError(error.err()));
+			throw new WorterbuchError(error.err());
 
 		} else {
 			throw new IllegalStateException();
@@ -670,7 +673,7 @@ public class WorterbuchClientImpl implements WorterbuchClient {
 		this.onWelcome.set(onWelcome);
 	}
 
-	public void messageReceived(final String message) {
+	public void messageReceived(final String message) throws UnhandledCallbackException {
 
 		JsonNode parent;
 
@@ -752,7 +755,7 @@ public class WorterbuchClientImpl implements WorterbuchClient {
 
 					if (!handled) {
 						WorterbuchClientImpl.log.error("Received error message from server: '{}'", err);
-						this.onError.accept(new WorterbuchException(new WorterbuchError(err)));
+						this.onError.accept(new WorterbuchError(err));
 					}
 
 				} catch (final JsonProcessingException e) {
@@ -771,7 +774,7 @@ public class WorterbuchClientImpl implements WorterbuchClient {
 						onWelcome.accept(welcome);
 					}
 				} catch (final JsonProcessingException e) {
-					this.onError.accept(new WorterbuchException("error deserializing welcome message", e));
+					this.onError.accept(new InvalidServerResponse("error deserializing welcome message", e));
 				}
 				return;
 			}
@@ -860,8 +863,7 @@ public class WorterbuchClientImpl implements WorterbuchClient {
 							e.getMessage());
 
 					if (pendingLs != null) {
-						pendingLs.callback()
-								.completeExceptionally(new WorterbuchException("server sent incomplete response"));
+						pendingLs.callback().completeExceptionally(new InvalidServerResponse());
 					}
 
 					if (lsSubscription != null) {
@@ -874,6 +876,8 @@ public class WorterbuchClientImpl implements WorterbuchClient {
 
 		} catch (final JsonProcessingException e) {
 			WorterbuchClientImpl.log.error("Received invalid JSON message: '{}'", message);
+		} catch (final Throwable e) {
+			throw new UnhandledCallbackException(e);
 		}
 	}
 
@@ -891,7 +895,7 @@ public class WorterbuchClientImpl implements WorterbuchClient {
 					pendingGet.callback().completeExceptionally(e);
 				}
 			} else {
-				pendingGet.callback().completeExceptionally(new WorterbuchException("server sent incomplete response"));
+				pendingGet.callback().completeExceptionally(new InvalidServerResponse());
 			}
 		}
 	}
@@ -911,8 +915,7 @@ public class WorterbuchClientImpl implements WorterbuchClient {
 					pendingCGet.callback().completeExceptionally(e);
 				}
 			} else {
-				pendingCGet.callback()
-						.completeExceptionally(new WorterbuchException("server sent incomplete response"));
+				pendingCGet.callback().completeExceptionally(new InvalidServerResponse());
 			}
 		}
 	}
@@ -936,8 +939,7 @@ public class WorterbuchClientImpl implements WorterbuchClient {
 					}
 				}
 			} else {
-				pendingDelete.callback()
-						.completeExceptionally(new WorterbuchException("server sent incomplete response"));
+				pendingDelete.callback().completeExceptionally(new InvalidServerResponse());
 			}
 		}
 	}
@@ -978,8 +980,7 @@ public class WorterbuchClientImpl implements WorterbuchClient {
 					pendingPGet.callback().completeExceptionally(e);
 				}
 			} else {
-				pendingPGet.callback()
-						.completeExceptionally(new WorterbuchException("server sent incomplete response"));
+				pendingPGet.callback().completeExceptionally(new InvalidServerResponse());
 			}
 		}
 	}
@@ -1005,8 +1006,7 @@ public class WorterbuchClientImpl implements WorterbuchClient {
 					}
 				}
 			} else {
-				pendingPDelete.callback()
-						.completeExceptionally(new WorterbuchException("server sent incomplete response"));
+				pendingPDelete.callback().completeExceptionally(new InvalidServerResponse());
 			}
 		}
 	}

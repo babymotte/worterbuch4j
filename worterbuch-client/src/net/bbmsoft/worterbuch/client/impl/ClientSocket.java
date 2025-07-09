@@ -25,4 +25,6 @@ public interface ClientSocket extends AutoCloseable {
 
 	void sendString(String json) throws IOException, InterruptedException;
 
+	@Override
+	void close();
 }

@@ -19,7 +19,9 @@
 
 package net.bbmsoft.worterbuch.client.error;
 
-public class WorterbuchException extends Exception {
+public abstract sealed class WorterbuchException extends Exception
+		permits WorterbuchError, ConnectionError, ConnectionFailed, InvalidServerResponse, MissingAuthToken,
+		ProtocolVersionNotSupported, UnhandledCallbackException, UnhandledInternalException {
 
 	private static final long serialVersionUID = 2381250353622788425L;
 

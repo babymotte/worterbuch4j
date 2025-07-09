@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.util.concurrent.Executor;
 import java.util.function.Consumer;
 
+import net.bbmsoft.worterbuch.client.error.ConnectionError;
 import net.bbmsoft.worterbuch.client.error.WorterbuchException;
 
 public class MessageSender {
@@ -26,9 +27,9 @@ public class MessageSender {
 		try {
 			this.client.sendString(json);
 		} catch (final IOException e) {
-			this.onError.accept(new WorterbuchException("Could not send message", e));
+			this.onError.accept(new ConnectionError("Could not send message", e));
 		} catch (final InterruptedException e) {
-			this.onError.accept(new WorterbuchException("Interrupted while sending message", e));
+			this.onError.accept(new ConnectionError("Interrupted while sending message", e));
 		}
 	}
 }
