@@ -1,5 +1,5 @@
 <?xml version='1.0' encoding='UTF-8'?>
-<repository xmlns="http://www.osgi.org/xmlns/repository/v1.0.0" name="Release" increment="1752092921932">
+<repository xmlns="http://www.osgi.org/xmlns/repository/v1.0.0" name="Release" increment="1752567848656">
   <resource>
     <capability namespace="osgi.identity">
       <attribute name="license" value="AGPL-3.0-or-later; link=&quot;https://www.gnu.org/licenses/agpl-3.0.html&quot;; description=&quot;A free software, copyleft license.&quot;"/>
@@ -7037,6 +7037,146 @@
     <requirement namespace="osgi.wiring.package">
       <directive name="filter" value="(&amp;(osgi.wiring.package=org.slf4j)(version&gt;=1.6.0)(!(version&gt;=2.0.0)))"/>
       <attribute name="osgi.wiring.package" value="org.slf4j"/>
+    </requirement>
+    <requirement namespace="osgi.ee">
+      <directive name="filter" value="(&amp;(osgi.ee=JavaSE)(version=17))"/>
+    </requirement>
+  </resource>
+  <resource>
+    <capability namespace="osgi.identity">
+      <attribute name="osgi.identity" value="worterbuch-client-api"/>
+      <attribute name="type" value="osgi.bundle"/>
+      <attribute name="version" value="15.0.0" type="Version"/>
+    </capability>
+    <capability namespace="osgi.wiring.package">
+      <directive name="uses" value="com.fasterxml.jackson.annotation"/>
+      <attribute name="bundle-symbolic-name" value="worterbuch-client-api"/>
+      <attribute name="bundle-version" value="15.0.0" type="Version"/>
+      <attribute name="osgi.wiring.package" value="net.bbmsoft.worterbuch.client.model"/>
+      <attribute name="version" value="15.0.0" type="Version"/>
+      <attribute name="bnd.hashes" value="65641,1955605320,-1388255487,-344648714,492753339,2067475,2079007,1998358030,-2120808036,2043376075,69957,71478,-1077356436,2373963,2471,2103360298,29226523,2454758,79351,-1924430303,-317368614,-1556514589,1429288175,1880993202,2553258,52619738,167217841,-1565755612,83010,80204913,-1776157398,-1785240495,-2043817295,-1308363752,-1397214398" type="List&lt;Long&gt;"/>
+    </capability>
+    <capability namespace="osgi.wiring.package">
+      <directive name="uses" value="com.fasterxml.jackson.annotation,com.fasterxml.jackson.core.type,com.fasterxml.jackson.databind,net.bbmsoft.worterbuch.client.api.util,net.bbmsoft.worterbuch.client.model,net.bbmsoft.worterbuch.client.response"/>
+      <attribute name="bundle-symbolic-name" value="worterbuch-client-api"/>
+      <attribute name="bundle-version" value="15.0.0" type="Version"/>
+      <attribute name="osgi.wiring.package" value="net.bbmsoft.worterbuch.client.api"/>
+      <attribute name="version" value="12.0.0" type="Version"/>
+      <attribute name="bnd.hashes" value="755811072,1581691183,-1961963531,1831150006,1476136559,121528970,-1923478059" type="List&lt;Long&gt;"/>
+    </capability>
+    <capability namespace="osgi.wiring.package">
+      <directive name="uses" value="net.bbmsoft.worterbuch.client.model"/>
+      <attribute name="bundle-symbolic-name" value="worterbuch-client-api"/>
+      <attribute name="bundle-version" value="15.0.0" type="Version"/>
+      <attribute name="osgi.wiring.package" value="net.bbmsoft.worterbuch.client.error"/>
+      <attribute name="version" value="3.0.0" type="Version"/>
+      <attribute name="bnd.hashes" value="-289229398,-363518757,-951089573,-1997387125,-673882565,-1360297939,-1002322585,-718936593,421597033,-1097042640,-1923478059" type="List&lt;Long&gt;"/>
+    </capability>
+    <capability namespace="osgi.wiring.package">
+      <attribute name="bundle-symbolic-name" value="worterbuch-client-api"/>
+      <attribute name="bundle-version" value="15.0.0" type="Version"/>
+      <attribute name="osgi.wiring.package" value="net.bbmsoft.worterbuch.client.api.util"/>
+      <attribute name="version" value="1.0.0" type="Version"/>
+      <attribute name="bnd.hashes" value="81172392,-1923478059" type="List&lt;Long&gt;"/>
+    </capability>
+    <capability namespace="osgi.wiring.package">
+      <directive name="uses" value="net.bbmsoft.worterbuch.client.error,net.bbmsoft.worterbuch.client.model"/>
+      <attribute name="bundle-symbolic-name" value="worterbuch-client-api"/>
+      <attribute name="bundle-version" value="15.0.0" type="Version"/>
+      <attribute name="osgi.wiring.package" value="net.bbmsoft.worterbuch.client.response"/>
+      <attribute name="version" value="1.1.0" type="Version"/>
+      <attribute name="bnd.hashes" value="67232232,2115664355,2556,-275679135,-1923478059" type="List&lt;Long&gt;"/>
+    </capability>
+    <capability namespace="osgi.wiring.package">
+      <attribute name="bundle-symbolic-name" value="worterbuch-client-api"/>
+      <attribute name="bundle-version" value="15.0.0" type="Version"/>
+      <attribute name="osgi.wiring.package" value="net.bbmsoft.worterbuch.client.impl.util.type"/>
+      <attribute name="version" value="15.0.0" type="Version"/>
+    </capability>
+    <capability namespace="osgi.wiring.bundle">
+      <attribute name="bundle-version" value="15.0.0" type="Version"/>
+      <attribute name="osgi.wiring.bundle" value="worterbuch-client-api"/>
+    </capability>
+    <capability namespace="osgi.wiring.host">
+      <attribute name="bundle-version" value="15.0.0" type="Version"/>
+      <attribute name="osgi.wiring.host" value="worterbuch-client-api"/>
+    </capability>
+    <capability namespace="osgi.content">
+      <attribute name="size" value="167000" type="Long"/>
+      <attribute name="mime" value="application/vnd.osgi.bundle"/>
+      <attribute name="url" value="worterbuch-client-api/worterbuch-client-api-15.0.0.jar"/>
+      <attribute name="osgi.content" value="1E5DB7CDA43E3ECB42EAFA9ED725BF263EB02A3B693BDE630E828F22A45E8ED9"/>
+    </capability>
+    <requirement namespace="osgi.wiring.package">
+      <directive name="filter" value="(&amp;(osgi.wiring.package=com.fasterxml.jackson.annotation)(version&gt;=2.17.0)(!(version&gt;=3.0.0)))"/>
+      <attribute name="osgi.wiring.package" value="com.fasterxml.jackson.annotation"/>
+    </requirement>
+    <requirement namespace="osgi.wiring.package">
+      <directive name="filter" value="(&amp;(osgi.wiring.package=com.fasterxml.jackson.core.type)(version&gt;=2.17.0)(!(version&gt;=3.0.0)))"/>
+      <attribute name="osgi.wiring.package" value="com.fasterxml.jackson.core.type"/>
+    </requirement>
+    <requirement namespace="osgi.wiring.package">
+      <directive name="filter" value="(&amp;(osgi.wiring.package=com.fasterxml.jackson.databind)(version&gt;=2.17.0)(!(version&gt;=3.0.0)))"/>
+      <attribute name="osgi.wiring.package" value="com.fasterxml.jackson.databind"/>
+    </requirement>
+    <requirement namespace="osgi.wiring.package">
+      <directive name="filter" value="(osgi.wiring.package=java.io)"/>
+      <attribute name="osgi.wiring.package" value="java.io"/>
+    </requirement>
+    <requirement namespace="osgi.wiring.package">
+      <directive name="filter" value="(osgi.wiring.package=java.lang)"/>
+      <attribute name="osgi.wiring.package" value="java.lang"/>
+    </requirement>
+    <requirement namespace="osgi.wiring.package">
+      <directive name="filter" value="(osgi.wiring.package=java.lang.invoke)"/>
+      <attribute name="osgi.wiring.package" value="java.lang.invoke"/>
+    </requirement>
+    <requirement namespace="osgi.wiring.package">
+      <directive name="filter" value="(osgi.wiring.package=java.lang.runtime)"/>
+      <attribute name="osgi.wiring.package" value="java.lang.runtime"/>
+    </requirement>
+    <requirement namespace="osgi.wiring.package">
+      <directive name="filter" value="(osgi.wiring.package=java.net)"/>
+      <attribute name="osgi.wiring.package" value="java.net"/>
+    </requirement>
+    <requirement namespace="osgi.wiring.package">
+      <directive name="filter" value="(osgi.wiring.package=java.time)"/>
+      <attribute name="osgi.wiring.package" value="java.time"/>
+    </requirement>
+    <requirement namespace="osgi.wiring.package">
+      <directive name="filter" value="(osgi.wiring.package=java.util)"/>
+      <attribute name="osgi.wiring.package" value="java.util"/>
+    </requirement>
+    <requirement namespace="osgi.wiring.package">
+      <directive name="filter" value="(osgi.wiring.package=java.util.concurrent)"/>
+      <attribute name="osgi.wiring.package" value="java.util.concurrent"/>
+    </requirement>
+    <requirement namespace="osgi.wiring.package">
+      <directive name="filter" value="(osgi.wiring.package=java.util.function)"/>
+      <attribute name="osgi.wiring.package" value="java.util.function"/>
+    </requirement>
+    <requirement namespace="osgi.wiring.package">
+      <directive name="filter" value="(&amp;(osgi.wiring.package=net.bbmsoft.worterbuch.client.api)(version&gt;=12.0.0)(!(version&gt;=13.0.0)))"/>
+      <attribute name="osgi.wiring.package" value="net.bbmsoft.worterbuch.client.api"/>
+    </requirement>
+    <requirement namespace="osgi.wiring.package">
+      <directive name="filter" value="(&amp;(osgi.wiring.package=net.bbmsoft.worterbuch.client.api.util)(version&gt;=1.0.0)(!(version&gt;=2.0.0)))"/>
+      <attribute name="osgi.wiring.package" value="net.bbmsoft.worterbuch.client.api.util"/>
+    </requirement>
+    <requirement namespace="osgi.wiring.package">
+      <directive name="filter" value="(&amp;(osgi.wiring.package=net.bbmsoft.worterbuch.client.error)(version&gt;=3.0.0)(!(version&gt;=4.0.0)))"/>
+      <attribute name="osgi.wiring.package" value="net.bbmsoft.worterbuch.client.error"/>
+    </requirement>
+    <requirement namespace="osgi.wiring.package">
+      <directive name="filter" value="(osgi.wiring.package=net.bbmsoft.worterbuch.client.model)"/>
+      <attribute name="osgi.wiring.package" value="net.bbmsoft.worterbuch.client.model"/>
+    </requirement>
+    <requirement namespace="osgi.wiring.package">
+      <directive name="filter" value="(&amp;(osgi.wiring.package=net.bbmsoft.worterbuch.client.response)(version&gt;=1.1.0)(!(version&gt;=2.0.0)))"/>
+      <attribute name="osgi.wiring.package" value="net.bbmsoft.worterbuch.client.response"/>
+    </requirement>
+    <requirement namespace="compile-only">
+      <directive name="filter" value="(compile-only=compile-only)"/>
     </requirement>
     <requirement namespace="osgi.ee">
       <directive name="filter" value="(&amp;(osgi.ee=JavaSE)(version=17))"/>
