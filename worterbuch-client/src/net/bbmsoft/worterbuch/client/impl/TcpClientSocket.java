@@ -179,7 +179,7 @@ public final class TcpClientSocket implements ClientSocket {
 
 			var str = new String(buf.array(), 0, read, StandardCharsets.UTF_8);
 
-			while (!str.isBlank()) {
+			while (!str.isEmpty()) {
 				final var lineBreak = str.indexOf('\n');
 				if (lineBreak == -1) {
 					sb.item.append(str);
