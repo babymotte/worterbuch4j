@@ -20,7 +20,7 @@ public class Util {
 		public WorterbuchClient client;
 
 		public void start() throws URISyntaxException, TimeoutException, WorterbuchException {
-			this.wb = new GenericContainer<>("babymotte/worterbuch:1.3.7");
+			this.wb = new GenericContainer<>("babymotte/worterbuch:1.4.2");
 			this.wb.withExposedPorts(80, 9090).start();
 			final var tcpPort = this.wb.getMappedPort(9090);
 			final var wsPort = this.wb.getMappedPort(80);

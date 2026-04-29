@@ -65,7 +65,9 @@ Export-Package: \
 	net.java.dev.jna:jna,\
 	net.java.dev.jna:platform,\
 	ch.qos.logback.classic,\
-	ch.qos.logback.core
+	ch.qos.logback.core,\
+	org.apache.commons.lang3,\
+	org.apache.commons.io
 
 -privatepackage: \
 	net.bbmsoft.worterbuch.client.pending,\
