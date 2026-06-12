@@ -52,6 +52,7 @@ public class Connector {
 		this.onError = onError;
 		this.exec = new WrappingExecutor(
 				Executors.newSingleThreadScheduledExecutor(r -> new Thread(r, "worterbuch-client")), this.onError);
+
 	}
 
 	public WorterbuchClient connect() throws TimeoutException, ConnectionFailed {

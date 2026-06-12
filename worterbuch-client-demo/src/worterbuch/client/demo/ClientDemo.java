@@ -94,16 +94,12 @@ public class ClientDemo {
 
 		final var authToken = System.getenv("WORTERBUCH_AUTH_TOKEN");
 
-		final var wb = authToken != null ? Worterbuch.connect(uris, authToken, this::exit, this::error, true)
-				: Worterbuch.connect(uris, this::exit, this::error, true);
+		final var wb = authToken != null ? Worterbuch.connect(uris, authToken, this::exit, this::error)
+				: Worterbuch.connect(uris, this::exit, this::error);
 
 		this.log.info("Acquiring lock on testapp/state/leader ...");
-		final var res = wb.acquireLock("testapp/state/leader").await();
-		if (res.isOk()) {
-			this.log.info("Lock on testapp/state/leader acquired.");
-		} else {
-			this.log.error("Failed to acquire lock on testapp/state/leader: {}", res.err().getMetadata());
-		}
+		wb.acquireLock("testapp/state/leader").await();
+		this.log.info("Lock on testapp/state/leader acquired.");
 
 		wb.set("testapp/state/running", true);
 
