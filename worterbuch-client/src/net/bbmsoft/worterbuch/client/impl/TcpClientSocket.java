@@ -29,6 +29,7 @@ import java.nio.channels.CompletionHandler;
 import java.nio.charset.StandardCharsets;
 import java.util.Optional;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.SynchronousQueue;
 import java.util.concurrent.TimeUnit;
@@ -54,13 +55,16 @@ public final class TcpClientSocket implements ClientSocket {
 	private final Consumer<WorterbuchException> onError;
 	private final LinkedBlockingQueue<String> outs;
 	private final AtomicBoolean disconnected;
+	private final ExecutorService executor;
 
 	private Thread receiveThread;
 	private Thread transmitThread;
 
-	public TcpClientSocket(final URI uri, final BiConsumer<Integer, String> onDisconnect,
-			final Consumer<WorterbuchException> onError, final int bufferSize) throws IOException {
+	public TcpClientSocket(final ExecutorService executor, final URI uri,
+			final BiConsumer<Integer, String> onDisconnect, final Consumer<WorterbuchException> onError,
+			final int bufferSize) throws IOException {
 
+		this.executor = executor;
 		this.uri = uri;
 		this.socket = AsynchronousSocketChannel.open();
 		this.onDisconnect = onDisconnect;
@@ -143,6 +147,13 @@ public final class TcpClientSocket implements ClientSocket {
 		} catch (final IOException e) {
 			this.onError.accept(new ConnectionError("error closing socket", e));
 		}
+
+		this.executor.shutdown();
+	}
+
+	@Override
+	public ExecutorService executor() {
+		return this.executor;
 	}
 
 	private void receiveLoop(final MessageConsumer messageConsumer) {

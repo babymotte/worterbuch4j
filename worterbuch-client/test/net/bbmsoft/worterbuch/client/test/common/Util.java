@@ -9,15 +9,15 @@ import java.util.concurrent.TimeoutException;
 import org.testcontainers.containers.GenericContainer;
 
 import net.bbmsoft.worterbuch.client.Worterbuch;
-import net.bbmsoft.worterbuch.client.api.WorterbuchClient;
 import net.bbmsoft.worterbuch.client.error.WorterbuchException;
+import net.bbmsoft.worterbuch.client.impl.WorterbuchClientImpl;
 
 public class Util {
 
 	public static class ContainerizedWB implements AutoCloseable {
 		private GenericContainer<?> wb;
 
-		public WorterbuchClient client;
+		public WorterbuchClientImpl client;
 
 		public void start() throws URISyntaxException, TimeoutException, WorterbuchException {
 			this.wb = new GenericContainer<>("babymotte/worterbuch:1.4.2");
@@ -27,7 +27,7 @@ public class Util {
 
 			final var uris = this.uris(tcpPort, wsPort);
 
-			this.client = Worterbuch.connect(uris.subList(0, 1), (i, m) -> {
+			this.client = (WorterbuchClientImpl) Worterbuch.connect(uris.subList(0, 1), (i, m) -> {
 			}, e -> {
 				e.printStackTrace();
 			});
@@ -48,27 +48,28 @@ public class Util {
 			this.wb.close();
 		}
 
-		public WorterbuchClient startSecondClient() throws TimeoutException, WorterbuchException, URISyntaxException {
+		public WorterbuchClientImpl startSecondClient()
+				throws TimeoutException, WorterbuchException, URISyntaxException {
 
 			final var tcpPort = this.wb.getMappedPort(9090);
 			final var wsPort = this.wb.getMappedPort(80);
 
 			final var uris = this.uris(tcpPort, wsPort);
 
-			return Worterbuch.connect(uris.subList(0, 1), (i, m) -> {
+			return (WorterbuchClientImpl) Worterbuch.connect(uris.subList(0, 1), (i, m) -> {
 			}, e -> {
 				e.printStackTrace();
 			});
 
 		}
 
-		public WorterbuchClient startWsClient() throws TimeoutException, WorterbuchException, URISyntaxException {
+		public WorterbuchClientImpl startWsClient() throws TimeoutException, WorterbuchException, URISyntaxException {
 			final var tcpPort = this.wb.getMappedPort(9090);
 			final var wsPort = this.wb.getMappedPort(80);
 
 			final var uris = this.uris(tcpPort, wsPort);
 
-			return Worterbuch.connect(uris.subList(1, 2), (i, m) -> {
+			return (WorterbuchClientImpl) Worterbuch.connect(uris.subList(1, 2), (i, m) -> {
 			}, e -> {
 				e.printStackTrace();
 			});

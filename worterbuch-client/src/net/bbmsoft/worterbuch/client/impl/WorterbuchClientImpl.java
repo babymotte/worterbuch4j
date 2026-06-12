@@ -10,6 +10,7 @@ import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
@@ -1039,5 +1040,9 @@ public class WorterbuchClientImpl implements WorterbuchClient {
 				}
 			}
 		}
+	}
+
+	public ExecutorService executor() {
+		return this.client.executor();
 	}
 }

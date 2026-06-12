@@ -22,6 +22,7 @@ package net.bbmsoft.worterbuch.client.impl;
 import java.io.IOException;
 import java.net.URI;
 import java.util.Optional;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
@@ -41,9 +42,11 @@ public class WsClientSocket implements ClientSocket, WriteCallback {
 	private final Consumer<WorterbuchException> onError;
 	private Session session;
 	private final Optional<String> authtoken;
+	private final ExecutorService executor;
 
-	public WsClientSocket(final URI uri, final Consumer<WorterbuchException> onError,
+	public WsClientSocket(final ExecutorService executor, final URI uri, final Consumer<WorterbuchException> onError,
 			final Optional<String> authtoken) {
+		this.executor = executor;
 		this.client = new WebSocketClient();
 		this.uri = uri;
 		this.onError = onError;
@@ -71,6 +74,12 @@ public class WsClientSocket implements ClientSocket, WriteCallback {
 		} catch (final Exception e) {
 			this.onError.accept(new ConnectionError("Error closing websocket", e));
 		}
+		this.executor.shutdown();
+	}
+
+	@Override
+	public ExecutorService executor() {
+		return this.executor;
 	}
 
 	@Override

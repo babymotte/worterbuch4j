@@ -20,6 +20,7 @@
 package net.bbmsoft.worterbuch.client.impl;
 
 import java.io.IOException;
+import java.util.concurrent.ExecutorService;
 
 public interface ClientSocket extends AutoCloseable {
 
@@ -27,4 +28,6 @@ public interface ClientSocket extends AutoCloseable {
 
 	@Override
 	void close();
+
+	ExecutorService executor();
 }

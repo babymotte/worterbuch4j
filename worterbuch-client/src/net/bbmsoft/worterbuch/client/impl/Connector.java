@@ -89,7 +89,7 @@ public class Connector {
 
 	private WorterbuchClient initWsWorterbuchClient(final URI uri, final Optional<String> authtoken) throws Throwable {
 
-		final var clientSocket = new WsClientSocket(uri, this.onError, authtoken);
+		final var clientSocket = new WsClientSocket(this.exec, uri, this.onError, authtoken);
 
 		final var preConnectError = new LinkedBlockingQueue<Optional<Throwable>>();
 		final var handshakeLatch = new LinkedBlockingQueue<Optional<Throwable>>();
@@ -171,7 +171,8 @@ public class Connector {
 
 	private WorterbuchClient initTcpWorterbuchClient(final URI uri) throws Throwable {
 
-		final var clientSocket = new TcpClientSocket(uri, this.onDisconnect, this.onError, Config.CHANNEL_BUFFER_SIZE);
+		final var clientSocket = new TcpClientSocket(this.exec, uri, this.onDisconnect, this.onError,
+				Config.CHANNEL_BUFFER_SIZE);
 
 		final var handshakeLatch = new LinkedBlockingQueue<Optional<Throwable>>();
 		final var wb = new WorterbuchClientImpl(clientSocket, this.exec, this.onError);
