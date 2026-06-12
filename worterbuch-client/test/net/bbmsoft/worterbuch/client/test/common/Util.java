@@ -1,4 +1,4 @@
-package net.bbmsoft.worterbuch.client.regression.test;
+package net.bbmsoft.worterbuch.client.test.common;
 
 import java.net.URI;
 import java.net.URISyntaxException;

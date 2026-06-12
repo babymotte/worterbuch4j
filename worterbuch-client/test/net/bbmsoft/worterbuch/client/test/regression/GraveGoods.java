@@ -1,4 +1,4 @@
-package net.bbmsoft.worterbuch.client.regression.test;
+package net.bbmsoft.worterbuch.client.test.regression;
 
 import java.net.URISyntaxException;
 import java.util.Arrays;
@@ -14,7 +14,7 @@ import org.junit.Test;
 import com.fasterxml.jackson.core.type.TypeReference;
 
 import net.bbmsoft.worterbuch.client.error.WorterbuchException;
-import net.bbmsoft.worterbuch.client.regression.test.Util.ContainerizedWB;
+import net.bbmsoft.worterbuch.client.test.common.Util.ContainerizedWB;
 
 public class GraveGoods {
 

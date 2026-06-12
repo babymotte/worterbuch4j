@@ -1,4 +1,4 @@
-package net.bbmsoft.worterbuch.client.regression.test;
+package net.bbmsoft.worterbuch.client.test.regression;
 
 import java.net.URISyntaxException;
 import java.util.NoSuchElementException;
@@ -17,7 +17,7 @@ import org.junit.Test;
 import net.bbmsoft.worterbuch.client.api.TypedPStateEvent;
 import net.bbmsoft.worterbuch.client.api.WorterbuchClient;
 import net.bbmsoft.worterbuch.client.error.WorterbuchException;
-import net.bbmsoft.worterbuch.client.regression.test.Util.ContainerizedWB;
+import net.bbmsoft.worterbuch.client.test.common.Util.ContainerizedWB;
 
 public class PSubscribe {
 

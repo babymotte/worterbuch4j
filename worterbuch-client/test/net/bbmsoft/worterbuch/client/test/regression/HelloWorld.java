@@ -1,4 +1,4 @@
-package net.bbmsoft.worterbuch.client.regression.test;
+package net.bbmsoft.worterbuch.client.test.regression;
 
 public record HelloWorld(String greeting, String gretee) {
 
