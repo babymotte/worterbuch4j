@@ -218,6 +218,11 @@ public class ClientDemo {
 	}
 
 	private void exit(final Integer errorCode, final String message) {
+
+		if (Thread.currentThread().isInterrupted()) {
+			throw new IllegalStateException("Some sneaky little bastard interrupted this thread. Don't do that!");
+		}
+
 		this.running = false;
 		if (this.deactivating) {
 			return;

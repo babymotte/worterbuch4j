@@ -72,7 +72,9 @@ public class WsClientSocket implements ClientSocket, WriteCallback {
 		try {
 			this.client.stop();
 		} catch (final Exception e) {
-			this.onError.accept(new ConnectionError("Error closing websocket", e));
+			final var error = new ConnectionError("Error closing websocket", e);
+			final var onError = this.onError;
+			this.executor.execute(() -> onError.accept(error));
 		}
 		this.executor.shutdown();
 	}
@@ -89,7 +91,9 @@ public class WsClientSocket implements ClientSocket, WriteCallback {
 
 	@Override
 	public void writeFailed(final Throwable x) {
-		this.onError.accept(new ConnectionError("error writing to socket", x));
+		final var error = new ConnectionError("error writing to socket", x);
+		final var onError = this.onError;
+		this.executor.execute(() -> onError.accept(error));
 	}
 
 	@Override

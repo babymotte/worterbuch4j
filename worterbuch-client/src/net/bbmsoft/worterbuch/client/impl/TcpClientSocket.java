@@ -145,7 +145,9 @@ public final class TcpClientSocket implements ClientSocket {
 		try {
 			this.socket.close();
 		} catch (final IOException e) {
-			this.onError.accept(new ConnectionError("error closing socket", e));
+			final var error = new ConnectionError("error closing socket", e);
+			final var onError = this.onError;
+			this.executor.execute(() -> onError.accept(error));
 		}
 
 		this.executor.shutdown();
@@ -203,7 +205,8 @@ public final class TcpClientSocket implements ClientSocket {
 						try {
 							messageConsumer.accept(line);
 						} catch (final UnhandledCallbackException e) {
-							this.onError.accept(e);
+							final var onError = this.onError;
+							this.executor.execute(() -> onError.accept(e));
 						}
 					}
 					str = str.substring(lineBreak + 1);
@@ -295,7 +298,9 @@ public final class TcpClientSocket implements ClientSocket {
 		final var alreadyDisconnected = this.disconnected.getAndSet(true);
 		errorCode.item = 2;
 		message.item = "socket read error";
-		TcpClientSocket.this.onError.accept(new ConnectionError("error reading from socket", e));
+		final var onError = this.onError;
+		final var error = new ConnectionError("error reading from socket", e);
+		this.executor.execute(() -> onError.accept(error));
 		Thread.currentThread().interrupt();
 		return alreadyDisconnected;
 	}
@@ -304,18 +309,25 @@ public final class TcpClientSocket implements ClientSocket {
 		final var alreadyDisconnected = this.disconnected.getAndSet(true);
 		errorCode.item = 3;
 		message.item = "socket write error";
-		TcpClientSocket.this.onError.accept(new ConnectionError("error writing to socket", e));
+		final var onError = this.onError;
+		final var error = new ConnectionError("error writing to socket", e);
+		this.executor.execute(() -> onError.accept(error));
 		Thread.currentThread().interrupt();
 		return alreadyDisconnected;
 	}
 
 	private void closed(final Ref<Integer> errorCode, final Ref<String> message, final boolean alreadyDisconnected) {
 		if (!alreadyDisconnected) {
-			this.onDisconnect.accept(errorCode.item, message.item);
+			final var onDisconnect = this.onDisconnect;
+			final var code = errorCode.item;
+			final var msg = message.item;
+			this.executor.execute(() -> onDisconnect.accept(code, msg));
 			try {
 				this.socket.close();
 			} catch (final IOException e) {
-				this.onError.accept(new ConnectionError("socket closed", e));
+				final var error = new ConnectionError("socket closed", e);
+				final var onError = this.onError;
+				this.executor.execute(() -> onError.accept(error));
 			}
 		}
 	}
