@@ -26,6 +26,7 @@ import net.bbmsoft.worterbuch.client.error.ProtocolVersionNotSupported;
 import net.bbmsoft.worterbuch.client.error.UnhandledCallbackException;
 import net.bbmsoft.worterbuch.client.error.WorterbuchError;
 import net.bbmsoft.worterbuch.client.error.WorterbuchException;
+import net.bbmsoft.worterbuch.client.impl.WrappingExecutor.TracedThread;
 import net.bbmsoft.worterbuch.client.model.Welcome;
 import net.bbmsoft.worterbuch.client.response.Error;
 
@@ -51,7 +52,8 @@ public class Connector {
 		this.onDisconnect = onDisconnect;
 		this.onError = onError;
 		this.exec = new WrappingExecutor(
-				Executors.newSingleThreadScheduledExecutor(r -> new Thread(r, "worterbuch-client")), this.onError);
+				Executors.newSingleThreadScheduledExecutor(r -> new TracedThread(r, "worterbuch-client")),
+				this.onError);
 
 	}
 

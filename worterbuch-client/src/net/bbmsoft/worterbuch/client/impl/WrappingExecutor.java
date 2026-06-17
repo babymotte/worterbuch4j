@@ -30,10 +30,25 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.function.Consumer;
 
+import org.slf4j.LoggerFactory;
+
 import net.bbmsoft.worterbuch.client.error.UnhandledInternalException;
 import net.bbmsoft.worterbuch.client.error.WorterbuchException;
 
 public class WrappingExecutor implements ScheduledExecutorService {
+
+	public static class TracedThread extends Thread {
+		TracedThread(final Runnable r, final String name) {
+			super(r, name);
+		}
+
+		@Override
+		public void interrupt() {
+			LoggerFactory.getLogger(this.getClass()).warn("wortebruch client thread interrupted:",
+					new Throwable("interrupt() called on " + this.getName()));
+			super.interrupt();
+		}
+	}
 
 	private final ScheduledExecutorService delegate;
 	private final Consumer<WorterbuchException> onError;
