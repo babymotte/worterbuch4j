@@ -15,6 +15,7 @@ import org.osgi.service.component.annotations.Deactivate;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import net.bbmsoft.worterbuch.client.Worterbuch;
 import net.bbmsoft.worterbuch.client.api.WorterbuchClient;
 import net.bbmsoft.worterbuch.client.error.ConnectionError;
@@ -34,8 +35,11 @@ public class ProxyLocksDemo {
 	private volatile WorterbuchClient client2;
 
 	@Activate
-	public void start() throws ConnectionFailed, TimeoutException, URISyntaxException, InterruptedException {
+	@SuppressFBWarnings("EI_EXPOSE_REP2")
+	public void start(final BundleContext ctx)
+			throws ConnectionFailed, TimeoutException, URISyntaxException, InterruptedException {
 
+		this.ctx = ctx;
 		this.running = true;
 
 		this.client1 = Worterbuch.connect(List.of(new URI("tcp://localhost:9094")), null, this::exit, this::error);
