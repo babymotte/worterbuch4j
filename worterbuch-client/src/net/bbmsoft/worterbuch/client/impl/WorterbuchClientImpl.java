@@ -7,6 +7,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
+import java.util.TreeMap;
+import java.util.TreeSet;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
@@ -48,6 +51,7 @@ import net.bbmsoft.worterbuch.client.pending.PendingAuth;
 import net.bbmsoft.worterbuch.client.pending.PendingCGet;
 import net.bbmsoft.worterbuch.client.pending.PendingDelete;
 import net.bbmsoft.worterbuch.client.pending.PendingGet;
+import net.bbmsoft.worterbuch.client.pending.PendingLock;
 import net.bbmsoft.worterbuch.client.pending.PendingLs;
 import net.bbmsoft.worterbuch.client.pending.PendingPDelete;
 import net.bbmsoft.worterbuch.client.pending.PendingPGet;
@@ -58,6 +62,44 @@ import net.bbmsoft.worterbuch.client.response.Ok;
 import net.bbmsoft.worterbuch.client.response.Response;
 
 public class WorterbuchClientImpl implements WorterbuchClient {
+
+	private static class PendingLostLocks {
+
+		private final Map<Long, Runnable> callbacks = new TreeMap<>();
+		private final Map<Long, String> keys = new TreeMap<>();
+		private final Map<String, Set<Long>> tids = new TreeMap<>();
+
+		public synchronized void register(final long transactionId, final String key, final Runnable onLockLost) {
+			this.callbacks.put(transactionId, onLockLost);
+			this.keys.put(transactionId, key);
+			var tids = this.tids.get(key);
+			if (tids == null) {
+				this.tids.put(key, tids = new TreeSet<>());
+			}
+			tids.add(transactionId);
+		}
+
+		public synchronized Runnable lost(final long transactionId) {
+			final var key = this.keys.remove(transactionId);
+			final var callback = this.callbacks.remove(transactionId);
+			if (key != null) {
+				final var tids = this.tids.get(key);
+				tids.remove(transactionId);
+				if (tids.isEmpty()) {
+					this.tids.remove(key);
+				}
+			}
+			return callback;
+		}
+
+		public synchronized void released(final String key) {
+			final var tids = this.tids.remove(key);
+			for (final Long transactionId : tids) {
+				this.keys.remove(transactionId);
+				this.callbacks.remove(transactionId);
+			}
+		}
+	}
 
 	private static final Logger log = LoggerFactory.getLogger(WorterbuchClientImpl.class);
 
@@ -73,6 +115,8 @@ public class WorterbuchClientImpl implements WorterbuchClient {
 	private final AtomicReference<PendingAuth> pendingAuth;
 
 	private final Map<Long, PendingAck> pendingAcks;
+	private final Map<Long, PendingLock> pendingLocks;
+	private final PendingLostLocks pendingLostLocks;
 
 	private final Map<Long, PendingLs> pendingLss;
 	private final Map<Long, PendingGet<?>> pendingGets;
@@ -104,6 +148,8 @@ public class WorterbuchClientImpl implements WorterbuchClient {
 		this.pendingAuth = new AtomicReference<>();
 
 		this.pendingAcks = new ConcurrentHashMap<>();
+		this.pendingLocks = new ConcurrentHashMap<>();
+		this.pendingLostLocks = new PendingLostLocks();
 
 		this.pendingGets = new ConcurrentHashMap<>();
 		this.pendingPGets = new ConcurrentHashMap<>();
@@ -472,29 +518,30 @@ public class WorterbuchClientImpl implements WorterbuchClient {
 	}
 
 	@Override
-	public Future<Void> lock(final String key) {
+	public Future<Void> lock(final String key, final Runnable onLockLost) {
 		final var tid = this.acquireTid();
 		final var fut = new CompletableFuture<Response<Void>>();
 		final var msg = MessageBuilder.lockMessage(tid, key);
 		final var json = this.messageSerde.serializeMessage(msg);
-		this.pendingAcks.put(tid, new PendingAck(msg, fut));
+		this.pendingLocks.put(tid, new PendingLock(msg, fut, key, onLockLost));
 		this.messageSender.sendMessage(json);
 		return new Future<>(fut, tid);
 	}
 
 	@Override
-	public Future<Void> acquireLock(final String key) {
+	public Future<Void> acquireLock(final String key, final Runnable onLockLost) {
 		final var tid = this.acquireTid();
 		final var fut = new CompletableFuture<Response<Void>>();
 		final var msg = MessageBuilder.acquireLockMessage(tid, key);
 		final var json = this.messageSerde.serializeMessage(msg);
-		this.pendingAcks.put(tid, new PendingAck(msg, fut));
+		this.pendingLocks.put(tid, new PendingLock(msg, fut, key, onLockLost));
 		this.messageSender.sendMessage(json);
 		return new Future<>(fut, tid);
 	}
 
 	@Override
 	public Future<Void> releaseLock(final String key) {
+		this.pendingLostLocks.released(key);
 		final var tid = this.acquireTid();
 		final var fut = new CompletableFuture<Response<Void>>();
 		final var msg = MessageBuilder.releaseLockMessage(tid, key);
@@ -697,9 +744,23 @@ public class WorterbuchClientImpl implements WorterbuchClient {
 
 				final var transactionId = ackContainer.get("transactionId").asLong();
 
-				final var pending = this.pendingAcks.remove(transactionId);
-				if (pending != null) {
-					pending.callback().complete(new Ok<>(null));
+				{
+					final var pending = this.pendingAcks.remove(transactionId);
+					if (pending != null) {
+						pending.callback().complete(new Ok<>(null));
+					}
+				}
+
+				{
+					final var pending = this.pendingLocks.remove(transactionId);
+					if (pending != null) {
+						final var onLockLost = pending.onLockLost();
+						if (onLockLost != null) {
+							final var key = pending.key();
+							this.pendingLostLocks.register(transactionId, key, onLockLost);
+						}
+						pending.callback().complete(new Ok<>(null));
+					}
 				}
 
 				return;
@@ -712,10 +773,24 @@ public class WorterbuchClientImpl implements WorterbuchClient {
 					final var transactionId = err.getTransactionId();
 					var handled = false;
 
+					if (err.getErrorCode() == ErrorCode.LockLost) {
+						final var callback = this.pendingLostLocks.lost(transactionId);
+						if (callback != null) {
+							handled = true;
+							this.executor().execute(callback);
+						}
+					}
+
 					final var pendingAck = this.pendingAcks.remove(transactionId);
 					if (pendingAck != null) {
 						handled = true;
 						pendingAck.callback().complete(new Error<>(err));
+					}
+
+					final var pendingLock = this.pendingLocks.remove(transactionId);
+					if (pendingLock != null) {
+						handled = true;
+						pendingLock.callback().complete(new Error<>(err));
 					}
 
 					final var pendingGet = this.pendingGets.remove(transactionId);

@@ -30,5 +30,5 @@ public interface Constants {
 
 	}
 
-	public static final ProtocolVersion PROTOCOL_VERSION = new ProtocolVersion(1, 1);
+	public static final ProtocolVersion PROTOCOL_VERSION = new ProtocolVersion(2, 0);
 }

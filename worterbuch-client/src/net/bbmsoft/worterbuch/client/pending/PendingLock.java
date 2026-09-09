@@ -7,6 +7,7 @@ import net.bbmsoft.worterbuch.client.model.ClientMessage;
 import net.bbmsoft.worterbuch.client.response.Response;
 
 @SuppressFBWarnings({ "EI_EXPOSE_REP", "EI_EXPOSE_REP2" })
-public record PendingLock(ClientMessage request, CompletableFuture<Response<Void>> callback) {
+public record PendingLock(ClientMessage request, CompletableFuture<Response<Void>> callback, String key,
+		Runnable onLockLost) {
 
 }

@@ -501,7 +501,24 @@ public interface WorterbuchClient extends AutoCloseable {
 	 * @return a future that allows retrieving the transaction ID as well as
 	 *         awaiting the server response
 	 */
-	Future<Void> lock(String key);
+	default Future<Void> lock(final String key) {
+		return this.lock(key, null);
+	}
+
+	/**
+	 * Try to get the lock on the specified key. If no one currently holds the lock
+	 * or the lock is held by this client, the server will immediately send a
+	 * success message, if the lock is currently held by another client, the server
+	 * will immediately send an error message.
+	 *
+	 * @param key
+	 * @param onLockLost a callback that gets invoked if the server signals the
+	 *                   client that the lock was lost. This can only happen when
+	 *                   connected to a proxy instance that just sitched its leader
+	 * @return a future that allows retrieving the transaction ID as well as
+	 *         awaiting the server response
+	 */
+	Future<Void> lock(String key, Runnable onLockLost);
 
 	/**
 	 * Acquire the lock on the specified key, waiting if necessary for the lock to
@@ -511,7 +528,22 @@ public interface WorterbuchClient extends AutoCloseable {
 	 * @return a future that allows retrieving the transaction ID as well as
 	 *         awaiting the server response
 	 */
-	Future<Void> acquireLock(String key);
+	default Future<Void> acquireLock(final String key) {
+		return this.acquireLock(key, null);
+	}
+
+	/**
+	 * Acquire the lock on the specified key, waiting if necessary for the lock to
+	 * become available.
+	 *
+	 * @param key
+	 * @param onLockLost a callback that gets invoked if the server signals the
+	 *                   client that the lock was lost. This can only happen when
+	 *                   connected to a proxy instance that just sitched its leader
+	 * @return a future that allows retrieving the transaction ID as well as
+	 *         awaiting the server response
+	 */
+	Future<Void> acquireLock(String key, Runnable onLockLost);
 
 	/**
 	 * Release the lock on the specified key.
