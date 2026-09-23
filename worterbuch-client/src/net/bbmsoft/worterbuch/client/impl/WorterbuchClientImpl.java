@@ -94,9 +94,11 @@ public class WorterbuchClientImpl implements WorterbuchClient {
 
 		public synchronized void released(final String key) {
 			final var tids = this.tids.remove(key);
-			for (final Long transactionId : tids) {
-				this.keys.remove(transactionId);
-				this.callbacks.remove(transactionId);
+			if (tids != null) {
+				for (final Long transactionId : tids) {
+					this.keys.remove(transactionId);
+					this.callbacks.remove(transactionId);
+				}
 			}
 		}
 	}
