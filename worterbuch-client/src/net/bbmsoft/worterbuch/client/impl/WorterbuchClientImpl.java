@@ -402,13 +402,12 @@ public class WorterbuchClientImpl implements WorterbuchClient {
 
 	@Override
 	public Future<Void> unsubscribe(final long transactionId) {
-		final var tid = this.acquireTid();
 		final var fut = new CompletableFuture<Response<Void>>();
-		final var msg = MessageBuilder.unsubscribeMessage(tid);
+		final var msg = MessageBuilder.unsubscribeMessage(transactionId);
 		final var json = this.messageSerde.serializeMessage(msg);
-		this.pendingAcks.put(tid, new PendingAck(msg, fut));
+		this.pendingAcks.put(transactionId, new PendingAck(msg, fut));
 		this.messageSender.sendMessage(json);
-		return new Future<>(fut, tid);
+		return new Future<>(fut, transactionId);
 	}
 
 	@Override
@@ -425,13 +424,12 @@ public class WorterbuchClientImpl implements WorterbuchClient {
 
 	@Override
 	public Future<Void> unsubscribeLs(final long transactionId) {
-		final var tid = this.acquireTid();
 		final var fut = new CompletableFuture<Response<Void>>();
-		final var msg = MessageBuilder.unsubscribeLsMessage(tid);
+		final var msg = MessageBuilder.unsubscribeLsMessage(transactionId);
 		final var json = this.messageSerde.serializeMessage(msg);
-		this.pendingAcks.put(tid, new PendingAck(msg, fut));
+		this.pendingAcks.put(transactionId, new PendingAck(msg, fut));
 		this.messageSender.sendMessage(json);
-		return new Future<>(fut, tid);
+		return new Future<>(fut, transactionId);
 	}
 
 	@Override
